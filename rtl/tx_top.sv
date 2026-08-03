@@ -97,6 +97,15 @@ module tx_top (
     logic signed [MIXER_OUT_W-1:0] beam_q [N_BEAM-1:0][N_ELEM-1:0][INTERP-1:0];
     logic                           beam_valid [N_BEAM-1:0];
 
+    // 求和 valid: 4 波束 valid 与 (各波束延迟配置可不同, 等全部就绪再求和)
+    // 注意: beam_valid 是 unpacked array, 归约运算符 & 不适用, 用循环组合求与
+    logic beam_valid_all;
+    always_comb begin
+        beam_valid_all = 1'b1;
+        for (int bm = 0; bm < N_BEAM; bm++)
+            beam_valid_all = beam_valid_all & beam_valid[bm];
+    end
+
     genvar b;
     generate
         for (b = 0; b < N_BEAM; b++) begin : g_beam
@@ -159,7 +168,7 @@ module tx_top (
                 .in_i_8p   (bsum_i_in),
                 .in_q_8p   (bsum_q_in),
                 // 4 波束 valid 与: 各波束延迟配置可不同, 等全部就绪再求和
-                .in_valid  (&beam_valid),
+                .in_valid  (beam_valid_all),
                 .out_i_8p  (sum_i[e]),
                 .out_q_8p  (sum_q[e]),
                 .out_valid (sum_valid[e])
