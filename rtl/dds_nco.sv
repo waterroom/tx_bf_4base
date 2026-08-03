@@ -49,9 +49,14 @@ module dds_nco #(
 
     // ---------- 1/4 波正弦 LUT (0 ~ π/2, 1024 点, 16bit 有符号) ----------
     // 存储无偏移的 0~π/2 正弦值, 幅度 [-2^15, 2^15-1]
+    // 路径: 默认 "sin_quarter.mem" (仿真时文件需在仿真工作目录),
+    //       或用 -d SIN_QUARTER_MEM="完整路径" 覆盖 (见 scripts/run_sim.tcl)
+`ifndef SIN_QUARTER_MEM
+`define SIN_QUARTER_MEM "sin_quarter.mem"
+`endif
     logic signed [OUT_W-1:0] sin_lut [0:LUT_DEPTH-1];
     initial begin
-        $readmemh("sin_quarter.mem", sin_lut);  // Vivado 综合 + 仿真均支持
+        $readmemh(`SIN_QUARTER_MEM, sin_lut);  // Vivado 综合 + 仿真均支持
     end
 
     // ---------- 8 并行相位计算 + 查表 ----------

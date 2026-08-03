@@ -63,6 +63,8 @@ module tx_top (
     logic [$clog2(N_ELEM)-1:0]     cfg_fir_sel_ch;
     logic [$clog2(TAPS)-1:0]       cfg_fir_coef_addr;
     logic signed [COEF_W-1:0]       cfg_fir_coef_data;
+    logic                           cfg_weight_load [N_BEAM-1:0];
+    logic [$clog2(N_ELEM)-1:0]     cfg_weight_sel_ch;
 
     cfg_bus u_cfg (
         .clk             (clk_300m),
@@ -83,7 +85,9 @@ module tx_top (
         .cfg_fir_load    (cfg_fir_load),
         .cfg_fir_sel_ch  (cfg_fir_sel_ch),
         .cfg_fir_coef_addr (cfg_fir_coef_addr),
-        .cfg_fir_coef_data (cfg_fir_coef_data)
+        .cfg_fir_coef_data (cfg_fir_coef_data),
+        .cfg_weight_load (cfg_weight_load),
+        .cfg_weight_sel_ch (cfg_weight_sel_ch)
     );
 
     // ---------- 4 个波束处理单元 ----------
@@ -108,10 +112,12 @@ module tx_top (
                 .fir_coef_addr  (cfg_fir_coef_addr),
                 .fir_coef_data  (cfg_fir_coef_data),
                 .fir_sel_ch     (cfg_fir_sel_ch),
-                .weight_load    (1'b0),    // 权重由 cfg_bus 直接输出, 此处置 0
-                .weight_sel_ch  ('0),
-                .weight_re      ('0),
-                .weight_im      ('0),
+                // 权重串行加载: cfg_bus 写 weight 寄存器时产生 load 脉冲,
+                // 此处取被写通道的 re/im 值, 与 sel_ch 一起送入 tx_bf_core
+                .weight_load    (cfg_weight_load[b]),
+                .weight_sel_ch  (cfg_weight_sel_ch),
+                .weight_re      (cfg_weight_re[b][cfg_weight_sel_ch]),
+                .weight_im      (cfg_weight_im[b][cfg_weight_sel_ch]),
                 .phase_inc      (cfg_phase_inc[b]),
                 .phase_offset   (cfg_phase_offset[b]),
                 .out_i          (beam_i[b]),
@@ -120,10 +126,6 @@ module tx_top (
             );
         end
     endgenerate
-
-    // 注: tx_bf_core 的 weight_load 接口当前由 cfg_bus 直出寄存器, 但 tx_bf_core
-    //   需要串行加载。此处简化: weight_load=0, 实际需将 cfg_weight_re/im 串行写入。
-    //   TODO: 补充 weight 串行加载逻辑 (类似 FIR 系数加载口)。
 
     // ---------- 8 个阵元求和 (4 波束 → 1 路) ----------
     logic signed [SUM_OUT_W-1:0] sum_i [N_ELEM-1:0][INTERP-1:0];

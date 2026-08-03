@@ -48,7 +48,11 @@ module cfg_bus #(
     output logic                        cfg_fir_load [N_BEAM_P-1:0],
     output logic [$clog2(N_CH_P)-1:0]  cfg_fir_sel_ch,
     output logic [$clog2(TAPS)-1:0]   cfg_fir_coef_addr,
-    output logic signed [COEF_W-1:0]   cfg_fir_coef_data
+    output logic signed [COEF_W-1:0]   cfg_fir_coef_data,
+    // 复数权重串行加载 (写 weight_re/im 寄存器时产生 load 脉冲, 配合
+    // cfg_weight_re/im 数组选中通道的值, 由上层串行写入 tx_bf_core)
+    output logic                        cfg_weight_load [N_BEAM_P-1:0],
+    output logic [$clog2(N_CH_P)-1:0]  cfg_weight_sel_ch
 );
 
     // ---------- 寄存器阵列 ----------
@@ -114,6 +118,25 @@ module cfg_bus #(
                 cfg_fir_load[b] <= apb_write & is_fir_port & (beam_idx == b[N_BEAM_P-1:0]);
         end
     end
+
+    // ---------- 复数权重加载口 ----------
+    // 写 weight_re[c] (0x08+c) 或 weight_im[c] (0x10+c) 时, 对应波束产生 1 拍 load 脉冲。
+    // 寄存器已同步更新 (同一拍写, 下一拍组合输出新值), load 脉冲也在写后一拍产生,
+    // 上层在 load 有效时用 cfg_weight_re/im[beam][sel_ch] 选中通道的值加载 tx_bf_core。
+    logic is_weight_port;
+    assign is_weight_port = (reg_idx >= 6'h08 && reg_idx < 6'h08 + N_CH_P) ||
+                            (reg_idx >= 6'h10 && reg_idx < 6'h10 + N_CH_P);
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int b = 0; b < N_BEAM_P; b++) cfg_weight_load[b] <= 1'b0;
+        end else begin
+            for (int b = 0; b < N_BEAM_P; b++)
+                cfg_weight_load[b] <= apb_write & is_weight_port & (beam_idx == b[N_BEAM_P-1:0]);
+        end
+    end
+    // 被写通道号: 由地址低 3 位给出 (0x08+c 或 0x10+c)
+    assign cfg_weight_sel_ch = reg_idx[2:0];
 
     // ---------- 输出分发 ----------
     always_comb begin
