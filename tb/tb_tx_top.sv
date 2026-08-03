@@ -87,21 +87,24 @@ module tb_tx_top;
 
     // ---------- 输出采样 ----------
     integer fout;
-    integer sample_count;
+    integer sample_count;   // 仅在下方 always_ff 中驱动 (避免多驱动错误)
     initial begin
         fout = $fopen("sim_out/dac_out_8p.log", "w");
         if (fout == 0) $display("ERROR: 无法打开 sim_out/dac_out_8p.log");
         else           $fdisplay(fout, "# tx_top DAC 输出 (阵元0: 8并行 I/Q)");
-        sample_count = 0;
     end
 
     always_ff @(posedge clk_300m) begin
-        if (dac_valid[0]) begin
+        if (!async_rst_n) begin
+            sample_count <= 0;
+        end else if (dac_valid[0]) begin
             for (int p = 0; p < INTERP; p++)
                 $fdisplay(fout, "%d %d", dac_i_8p[0][p], dac_q_8p[0][p]);
-            sample_count = sample_count + 1;
+            sample_count <= sample_count + 1;
         end
     end
+
+    // (调试用的内部信号 dump 已移除, 验证完成)
 
     // =========================================================================
     // APB 写任务
@@ -121,8 +124,9 @@ module tb_tx_top;
     task automatic cfg_beam(input int beam, input longint phase_inc);
         // 每通道: FIR 系数 t=7 处冲激 (直通, 系数 32767≈1.0)
         for (int c = 0; c < N_ELEM; c++) begin
-            // pwdata = {coef_data[15:0], coef_addr[3:0], sel_ch[3:0]}
-            apb_write(beam * 16'h40 + 16'h20, {16'h7FFF, 4'h7, c[3:0]});
+            // pwdata = {coef_data[15:0], coef_addr[3:0], sel_ch[3:0], 8'h0}
+            //   cfg_bus 解码: data=pwdata[31:16], addr=pwdata[15:12], sel=pwdata[11:8]
+            apb_write(beam * 16'h40 + 16'h20, {16'h7FFF, 4'h7, c[3:0], 8'h00});
         end
         // 每通道: 复数权重 re=0x7FFF(≈1.0), im=0
         for (int c = 0; c < N_ELEM; c++) begin

@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 // =============================================================================
 // dds_nco.sv  --  可综合 NCO (相位累加器 + 1/4 波正弦 LUT, 8 并行输出)
 // =============================================================================
@@ -41,18 +43,21 @@ module dds_nco #(
     // 象限: bit[15:14], LUT 索引: bit[13:4] (10bit)
 
     // ---------- 相位累加器 ----------
+    // 每拍 (300MHz) 产生 N_PAR=8 个 2.4GHz 采样, 相位每采样前进 phase_inc,
+    // 因此累加器每拍应前进 phase_inc*N_PAR (跨时钟步进), 时钟内并行采样
+    // 之间才前进 1*phase_inc。乘法在 32bit 内自动回绕 (mod 2^32)。
     logic [PHASE_W-1:0] phase_acc;
     always_ff @(posedge clk) begin
         if (rst) phase_acc <= phase_offset;
-        else     phase_acc <= phase_acc + phase_inc;
+        else     phase_acc <= phase_acc + phase_inc * N_PAR;
     end
 
     // ---------- 1/4 波正弦 LUT (0 ~ π/2, 1024 点, 16bit 有符号) ----------
     // 存储无偏移的 0~π/2 正弦值, 幅度 [-2^15, 2^15-1]
-    // 路径: 默认 "sin_quarter.mem" (仿真时文件需在仿真工作目录),
-    //       或用 -d SIN_QUARTER_MEM="完整路径" 覆盖 (见 scripts/run_sim.tcl)
+    // 路径: 默认 "ip/coef/sin_quarter.mem" (相对项目根目录, 仿真脚本已 cd 到根目录),
+    //       或用 -d SIN_QUARTER_MEM="完整路径" 覆盖
 `ifndef SIN_QUARTER_MEM
-`define SIN_QUARTER_MEM "sin_quarter.mem"
+`define SIN_QUARTER_MEM "ip/coef/sin_quarter.mem"
 `endif
     logic signed [OUT_W-1:0] sin_lut [0:LUT_DEPTH-1];
     initial begin
@@ -60,12 +65,16 @@ module dds_nco #(
     end
 
     // ---------- 8 并行相位计算 + 查表 ----------
-    // 当前拍产生 8 个连续相位 (步进 phase_inc), 各自查表
-    logic [PHASE_USE-1:0] phase_q [N_PAR-1:0];   // 截断后相位 (16bit)
+    // 当前拍产生 8 个连续相位: 用完整 32bit 相位叠加再截断, 保留低位进位,
+    // 避免逐采样截断累加导致的相位误差
+    logic [PHASE_W-1:0] phase_full [N_PAR-1:0];   // 完整 32bit 并行相位
+    logic [PHASE_USE-1:0] phase_q [N_PAR-1:0];    // 截断后相位 (16bit)
     always_comb begin
-        phase_q[0] = phase_acc[PHASE_W-1 : PHASE_W-PHASE_USE];
+        phase_full[0] = phase_acc;
         for (int p = 1; p < N_PAR; p++)
-            phase_q[p] = phase_q[p-1] + phase_inc[PHASE_W-1 : PHASE_W-PHASE_USE];
+            phase_full[p] = phase_full[p-1] + phase_inc;
+        for (int p = 0; p < N_PAR; p++)
+            phase_q[p] = phase_full[p][PHASE_W-1 : PHASE_W-PHASE_USE];
     end
 
     // 象限与索引分解: bit[15:14]=象限, bit[13:4]=LUT 索引

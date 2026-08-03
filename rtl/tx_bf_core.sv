@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 // =============================================================================
 // tx_bf_core.sv  --  16-channel wideband TX beamforming core (TTD)
 // =============================================================================
@@ -24,7 +26,6 @@
 
 `include "int_delay.sv"
 `include "frac_delay_fir.sv"
-`include "cmult.sv"
 `include "cmult_3dsp.sv"
 
 module tx_bf_core #(

@@ -31,6 +31,12 @@ xsim.dir/
 matlab/tb_data/*.hex
 matlab/tb_data/*.mat
 
+# 调试用一次性脚本 (验证完成, 不入库)
+matlab/debug_*.m
+matlab/test_interleave*.m
+matlab/check_model_out.m
+matlab/compare_fpga_spectrum.m
+
 # 系统
 .DS_Store
 Thumbs.db
@@ -43,3 +49,6 @@ ip/*/synth.log
 ip/*/impl/
 ip/*/*.veo
 ip/*/*.xcix
+
+# Vivado 精化产物
+*.pb

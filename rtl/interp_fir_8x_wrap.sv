@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 // =============================================================================
 // interp_fir_8x_wrap.sv  --  8 倍内插 FIR 包装 (8 通道, 8 并行输出)
 // =============================================================================
@@ -90,6 +92,7 @@ module interp_fir_8x_wrap #(
     // 内部位宽: IN_W + COEF_W + clog2(TAPS_PER_PHASE) = 18+16+3 = 37
     localparam int ACC_W = IN_W + COEF_W + $clog2(TAPS_PER_PHASE);  // 37
     logic signed [ACC_W-1:0] mac_out [N_CH-1:0][N_PAR-1:0];
+    logic signed [ACC_W-1:0] acc_calc;   // 显式累加器 (避免 automatic 变量歧义)
     logic v_mac;
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -101,11 +104,11 @@ module interp_fir_8x_wrap #(
             for (int c = 0; c < N_CH; c++) begin
                 for (int p = 0; p < N_PAR; p++) begin
                     // y_p = sum_{j=0}^{5} h[p+8*j] * x[n-j]
-                    automatic logic signed [ACC_W-1:0] acc = '0;
+                    acc_calc = '0;
                     for (int j = 0; j < TAPS_PER_PHASE; j++) begin
-                        acc = acc + shift_reg[c][j] * COEFF[p + N_PAR*j];
+                        acc_calc = acc_calc + shift_reg[c][j] * COEFF[p + N_PAR*j];
                     end
-                    mac_out[c][p] <= acc;
+                    mac_out[c][p] <= acc_calc;
                 end
             end
             v_mac <= v_in;
