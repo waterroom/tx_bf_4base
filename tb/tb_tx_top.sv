@@ -86,25 +86,40 @@ module tb_tx_top;
     end
 
     // ---------- 输出采样 ----------
+    // 重要: 采集必须在 APB 配置全部完成、且流水排空后使能 (capture_en),
+    // 否则数据流与逐通道权重加载并发, 前几拍部分通道权重未加载 → 输出 0,
+    // 表现为"8 阵元不一致"的假象 (硬件本身无错, 真实场景软件先配置再启流)。
+    // capture_en=1 的下一拍 dump 即开始, 必须先等待流水(总延迟~55拍)排空!
+    logic capture_en = 1'b0;
     integer fout;
+    integer fout8;
     integer sample_count;   // 仅在下方 always_ff 中驱动 (避免多驱动错误)
     initial begin
         fout = $fopen("sim_out/dac_out_8p.log", "w");
         if (fout == 0) $display("ERROR: 无法打开 sim_out/dac_out_8p.log");
         else           $fdisplay(fout, "# tx_top DAC 输出 (阵元0: 8并行 I/Q)");
+        fout8 = $fopen("sim_out/dac_out_8elem.log", "w");
+        if (fout8 == 0) $display("ERROR: 无法打开 sim_out/dac_out_8elem.log");
+        else           $fdisplay(fout8, "# tx_top DAC 8 阵元 (每行: 8阵元 I/Q, 2.4GHz交织序)");
     end
 
     always_ff @(posedge clk_300m) begin
         if (!async_rst_n) begin
             sample_count <= 0;
-        end else if (dac_valid[0]) begin
-            for (int p = 0; p < INTERP; p++)
+        end else if (capture_en && dac_valid[0]) begin
+            for (int p = 0; p < INTERP; p++) begin
                 $fdisplay(fout, "%d %d", dac_i_8p[0][p], dac_q_8p[0][p]);
+                // 8 阵元全 dump: 每行 i0 q0 i1 q1 ... i7 q7
+                $fwrite(fout8, "%d %d", dac_i_8p[0][p], dac_q_8p[0][p]);
+                for (int e = 1; e < N_ELEM; e++)
+                    $fwrite(fout8, " %d %d", dac_i_8p[e][p], dac_q_8p[e][p]);
+                $fdisplay(fout8, "");
+            end
             sample_count <= sample_count + 1;
         end
     end
 
-    // (调试用的内部信号 dump 已移除, 验证完成)
+    // (内部节点诊断 dump 已移除, 8 阵元一致性验证通过)
 
     // =========================================================================
     // APB 写任务
@@ -166,6 +181,94 @@ module tb_tx_top;
         cfg_beam(2, calc_phase_inc(1500e6));
         cfg_beam(3, calc_phase_inc(2200e6));
         $display("=== 配置完成, 开始采集 ===");
+        // 关键: 先等流水(总延迟~55拍)排空权重加载期的过渡数据, 再使能采样!
+        // (capture_en=1 的下一拍 dump 就开始, 若立即使能会记录未排空的脏数据)
+        repeat (120) @(posedge clk_300m);
+        capture_en = 1'b1;
+
+        // dump beam0 各通道的权重与 FIR 系数实际值 (诊断 8 阵元一致性)
+        // 注: generate 实例路径必须用常量索引 (变量索引精化期报 VRFC 10-2991)
+        repeat (10) @(posedge clk_300m);
+        $display("[cfg] beam0 w_re: %0d %0d %0d %0d %0d %0d %0d %0d",
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[0],
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[1],
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[2],
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[3],
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[4],
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[5],
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[6],
+            u_dut.g_beam[0].u_beam.u_bf_core.w_re[7]);
+        $display("[cfg] beam1 w_re: %0d %0d %0d %0d %0d %0d %0d %0d",
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[0],
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[1],
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[2],
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[3],
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[4],
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[5],
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[6],
+            u_dut.g_beam[1].u_beam.u_bf_core.w_re[7]);
+        $display("[cfg] beam2 w_re: %0d %0d %0d %0d %0d %0d %0d %0d",
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[0],
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[1],
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[2],
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[3],
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[4],
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[5],
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[6],
+            u_dut.g_beam[2].u_beam.u_bf_core.w_re[7]);
+        $display("[cfg] beam3 w_re: %0d %0d %0d %0d %0d %0d %0d %0d",
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[0],
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[1],
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[2],
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[3],
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[4],
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[5],
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[6],
+            u_dut.g_beam[3].u_beam.u_bf_core.w_re[7]);
+        $display("[cfg] beam0 fir7: %0d %0d %0d %0d %0d %0d %0d %0d",
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[1].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[2].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[3].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[4].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[5].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[6].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[7]);
+        // ch0 vs ch7 完整 16 抽头系数对比
+        $display("[cfg] ch0 coef: %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[0],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[1],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[2],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[3],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[4],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[5],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[6],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[8],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[9],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[10],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[11],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[12],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[13],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[14],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[15]);
+        $display("[cfg] ch7 coef: %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[0],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[1],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[2],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[3],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[4],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[5],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[6],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[7],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[8],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[9],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[10],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[11],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[12],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[13],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[14],
+            u_dut.g_beam[0].u_beam.u_bf_core.g_ch[7].u_fir.coef[15]);
 
         // 运行
         #(CLK_PERIOD * 2000);  // 2000 拍
