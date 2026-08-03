@@ -16,7 +16,7 @@
 //   phase_inc    : 32bit 相位步进 (f_LO = phase_inc / 2^32 * 2.4GHz)
 //   phase_offset : 32bit 相位初值
 //   cos_8p/sin_8p: 8 并行 16bit cos/sin 输出
-//   流水延迟: 2 拍 (累加器 1 + 查表寄存 1)
+//   流水延迟: 3 拍 (pinc_r 预计算 1 + 累加器 1 + 查表寄存 1)
 // =============================================================================
 
 `ifndef DDS_NCO_SV
@@ -66,13 +66,24 @@ module dds_nco #(
 
     // ---------- 8 并行相位计算 + 查表 ----------
     // 当前拍产生 8 个连续相位: 用完整 32bit 相位叠加再截断, 保留低位进位。
-    // 时序友好: 各并行相位直接从 phase_acc 加常数倍 phase_inc (p 为循环常量,
-    // p*phase_inc 综合为常数乘/移位加), 组合深度仅 1 级, 避免串行加法链。
+    // 时序优化: p*phase_inc (常数乘, 综合为移位加) 预计算并寄存 (pinc_r),
+    //   并行相位仅剩 1 级 32bit 加法 (phase_acc + pinc_r[p]), 300MHz 友好。
+    //   注: phase_inc 为静态配置, pinc_r 稳定后相位连续; 动态切换时需重新同步。
+    logic [PHASE_W-1:0] pinc_r [N_PAR-1:0];      // 预计算 p*phase_inc (1 拍)
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int p = 0; p < N_PAR; p++) pinc_r[p] <= '0;
+        end else begin
+            for (int p = 0; p < N_PAR; p++)
+                pinc_r[p] <= phase_inc * p[3:0];  // p 为循环常量, 常数乘法
+        end
+    end
+
     logic [PHASE_W-1:0] phase_full [N_PAR-1:0];   // 完整 32bit 并行相位
     logic [PHASE_USE-1:0] phase_q [N_PAR-1:0];    // 截断后相位 (16bit)
     always_comb begin
         for (int p = 0; p < N_PAR; p++)
-            phase_full[p] = phase_acc + phase_inc * p;
+            phase_full[p] = phase_acc + pinc_r[p];   // 深度 1 级 32bit 加法
         for (int p = 0; p < N_PAR; p++)
             phase_q[p] = phase_full[p][PHASE_W-1 : PHASE_W-PHASE_USE];
     end

@@ -18,7 +18,8 @@
 // 多相公式: y_p[n] = sum_{j=0}^{5} h[p+8*j] * x[n-j],  p=0..7
 //   每输入样本产生 8 个并行输出 (对应 8 个内插相位)
 //
-// 流水延迟: 6 拍 (输入寄存 1 + 移位寄存 1 + 乘法 1 + 两两相加 1 + 三输入求和 1 + 输出 1)
+// 流水延迟: 7 拍 (输入寄存 1 + 移位寄存 1 + 乘法 1 + 两两相加 1 + 三输入和 C1 1 + C2 1 + 输出 1)
+//   三输入和拆两级: 每级仅 1 个 37bit 加法, 300MHz 时序友好
 // =============================================================================
 
 `ifndef INTERP_FIR_8X_WRAP_SV
@@ -140,7 +141,31 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // Stage C: 三输入求和 (2 级加法, 37bit)
+    // Stage C: 三输入求和拆两级, 每级仅 1 个 37bit 加法 (消除 2 级加法链)
+    //   C1: sum12 = pair01 + pair23 (并寄存 pair45 延迟对齐)
+    //   C2: mac_out = sum12 + pair45_d1
+    logic signed [P_W:0]   pair45_d1 [N_CH-1:0][N_PAR-1:0];
+    logic signed [ACC_W-1:0] sum12    [N_CH-1:0][N_PAR-1:0];
+    logic v_sum12;
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int c = 0; c < N_CH; c++)
+                for (int p = 0; p < N_PAR; p++) begin
+                    sum12[c][p]     <= '0;
+                    pair45_d1[c][p] <= '0;
+                end
+            v_sum12 <= 1'b0;
+        end else begin
+            for (int c = 0; c < N_CH; c++)
+                for (int p = 0; p < N_PAR; p++) begin
+                    sum12[c][p] <= {{(ACC_W-P_W-1){pair01[c][p][P_W]}}, pair01[c][p]}
+                                 + {{(ACC_W-P_W-1){pair23[c][p][P_W]}}, pair23[c][p]};
+                    pair45_d1[c][p] <= pair45[c][p];
+                end
+            v_sum12 <= v_pair;
+        end
+    end
+
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int c = 0; c < N_CH; c++)
@@ -149,12 +174,9 @@ module interp_fir_8x_wrap #(
             v_mac <= 1'b0;
         end else begin
             for (int c = 0; c < N_CH; c++)
-                for (int p = 0; p < N_PAR; p++) begin
-                    mac_out[c][p] <= {{(ACC_W-P_W-1){pair01[c][p][P_W]}}, pair01[c][p]}
-                                   + {{(ACC_W-P_W-1){pair23[c][p][P_W]}}, pair23[c][p]}
-                                   + {{(ACC_W-P_W-1){pair45[c][p][P_W]}}, pair45[c][p]};
-                end
-            v_mac <= v_pair;
+                for (int p = 0; p < N_PAR; p++)
+                    mac_out[c][p] <= sum12[c][p] + {{(ACC_W-P_W-1){pair45_d1[c][p][P_W]}}, pair45_d1[c][p]};
+            v_mac <= v_sum12;
         end
     end
 
