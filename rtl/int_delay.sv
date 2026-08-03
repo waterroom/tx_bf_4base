@@ -7,14 +7,20 @@
 // 最大深度由参数 MAX_DEPTH 决定。复数 I/Q 一同移位（共用一条延迟线）。
 //
 // 特点：
-//   - 0 个 DSP（纯移位寄存器 + 多路选择）
+//   - 0 个 DSP（SRL 分段移位 + 二级多路选择，时序友好）
 //   - 支持 valid 流水（valid 一同移位，保持帧对齐）
 //   - delay_val 实时可变，建议与数据同步更新
 //   - 复用为单通道：N=1 时退化为单根延迟线
 //   - 输出延时为delay_val+2
+// 结构（避免大深度下 1025:1 单片 mux 的边界路径）：
+//   存储按每段 32 深分段（SRL32 深度），段内用 sel_r[4:0] 地址读
+//   （映射各 SRL 的地址线 Q 输出），段间级联，再用 sel_r 高位做
+//   二级 N_SEG 选 1（LUT 树）——组合路径 ≈ 1~1.5 ns @ 300 MHz。
+//   综合器自动推断为级联 SRLC32E（已加 srl_style="srl"），
+//   延迟语义与单段结构完全一致（sel_r 提前寄存 + 输出寄存）。
 // 参数：
 //   DATA_W    : I/Q 各自位宽
-//   MAX_DEPTH : 最大延迟深度（采样周期数），默认 64
+//   MAX_DEPTH : 最大延迟深度（采样周期数），默认 64，可扩展至 1024
 // =============================================================================
 
 `ifndef INT_DELAY_SV
@@ -35,40 +41,82 @@ module int_delay #(
     output logic                          valid_out
 );
 
-    // 移位寄存器：宽 2*DATA_W，深 MAX_DEPTH+1（含当前拍）
-    localparam int unsigned STG_W = 2 * DATA_W;
-    localparam int unsigned SEL_W = $clog2(MAX_DEPTH+1);
+    // -------------- 基础位宽 --------------
+    localparam int unsigned STG_W = 2 * DATA_W;              // I/Q 打包位宽
+    localparam int unsigned SEL_W = $clog2(MAX_DEPTH+1);     // 抽头选择位宽
 
-    logic [STG_W-1:0] shift_mem [0:MAX_DEPTH];
-    logic             valid_mem [0:MAX_DEPTH];
+    // -------------- SRL 分段参数 --------------
+    // 每段 32 深（SRL32 深度），段内用 sel_r[4:0] 地址读，
+    // 段间级联（段 j 的 [0] 收段 j-1 的 [31]，映射 SRL 的 Q31→D 级联）。
+    localparam int unsigned SEG_BITS  = 5;
+    localparam int unsigned SEG_LEN   = 1 << SEG_BITS;              // 32
+    localparam int unsigned N_SEG     = (MAX_DEPTH + SEG_LEN) / SEG_LEN;
+    localparam int unsigned SEG_IDX_W = SEL_W - SEG_BITS;
 
-    // 写入：当前输入始终进入 shift_mem[0]（I/Q 打包为 {im, re}）
-    // 注意：移位寄存器不复位，综合器可推断为 SRL（移位寄存器）或 BRAM，节省 FF 资源
+    // 分段移位寄存器：段 0 收当前输入，段内右移，段间级联
+    // 注意：不复位，综合器推断为级联 SRLC32E（srl_style），省 FF；
+    //       MAX_DEPTH=1024 时共 N_SEG=33 段 × 32 bit ≈ 1089 LUT/通道
+    (* srl_style = "srl" *) logic [STG_W-1:0] shift_mem [0:N_SEG-1][0:SEG_LEN-1];
+    (* srl_style = "srl" *) logic             valid_mem [0:N_SEG-1][0:SEG_LEN-1];
+
     always_ff @(posedge clk) begin
-        shift_mem[0] <= {in_im, in_re};
-        valid_mem[0] <= valid_in;
-        for (int i = 1; i <= MAX_DEPTH; i++) begin
-            shift_mem[i] <= shift_mem[i-1];
-            valid_mem[i] <= valid_mem[i-1];
+        shift_mem[0][0] <= {in_im, in_re};
+        valid_mem[0][0] <= valid_in;
+        for (int j = 0; j < N_SEG; j++) begin
+            for (int i = 1; i < SEG_LEN; i++) begin
+                shift_mem[j][i] <= shift_mem[j][i-1];
+                valid_mem[j][i] <= valid_mem[j][i-1];
+            end
+            if (j > 0) begin
+                shift_mem[j][0] <= shift_mem[j-1][SEG_LEN-1];
+                valid_mem[j][0] <= valid_mem[j-1][SEG_LEN-1];
+            end
         end
     end
 
-    // 选择输出：按 delay_val 从对应的延迟抽头读出（寄存输出，时序友好）
-logic [SEL_W-1:0] sel_r;
-always_ff @(posedge clk) begin
-    sel_r <= (delay_val > MAX_DEPTH) ? MAX_DEPTH[SEL_W-1:0] : delay_val[SEL_W-1:0];
-end
-always_ff @(posedge clk) begin
-    if (rst) begin
-        out_re    <= '0;
-        out_im    <= '0;
-        valid_out <= 1'b0;
-    end else begin
-        out_re    <= shift_mem[sel_r][DATA_W-1:0];
-        out_im    <= shift_mem[sel_r][2*DATA_W-1:DATA_W];
-        valid_out <= valid_mem[sel_r];
+    // -------------- 选择输出 --------------
+    // sel_r 提前一拍寄存（选通提前，时序友好）；delay_val 超限时钳制到 MAX_DEPTH
+    logic [SEL_W-1:0] sel_r;
+    always_ff @(posedge clk) begin
+        sel_r <= (delay_val > MAX_DEPTH) ? MAX_DEPTH[SEL_W-1:0] : delay_val[SEL_W-1:0];
     end
-end
+
+    // 一级选择：每段按段内地址读出一个抽头（各 SRL32 的地址读 Q 输出）
+    logic [STG_W-1:0] tap   [0:N_SEG-1];
+    logic             tap_v [0:N_SEG-1];
+    always_comb begin
+        for (int j = 0; j < N_SEG; j++) begin
+            tap[j]   = shift_mem[j][sel_r[SEG_BITS-1:0]];
+            tap_v[j] = valid_mem[j][sel_r[SEG_BITS-1:0]];
+        end
+    end
+
+    // 二级选择：按段号 N_SEG 选 1（LUT 树，而非 (MAX_DEPTH+1):1 单片 mux）
+    logic [STG_W-1:0] data_sel;
+    logic             valid_sel;
+    always_comb begin
+        data_sel  = tap[0];
+        valid_sel = tap_v[0];
+        for (int j = 1; j < N_SEG; j++) begin
+            if (sel_r[SEG_BITS +: SEG_IDX_W] == j[SEG_IDX_W-1:0]) begin
+                data_sel  = tap[j];
+                valid_sel = tap_v[j];
+            end
+        end
+    end
+
+    // 输出寄存
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            out_re    <= '0;
+            out_im    <= '0;
+            valid_out <= 1'b0;
+        end else begin
+            out_re    <= data_sel[DATA_W-1:0];
+            out_im    <= data_sel[2*DATA_W-1:DATA_W];
+            valid_out <= valid_sel;
+        end
+    end
 
 endmodule : int_delay
 
