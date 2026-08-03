@@ -158,7 +158,8 @@ module tx_top (
                 .rst       (rst),
                 .in_i_8p   (bsum_i_in),
                 .in_q_8p   (bsum_q_in),
-                .in_valid  (beam_valid[0]),  // 4 波束 valid 同步 (同源等延迟)
+                // 4 波束 valid 与: 各波束延迟配置可不同, 等全部就绪再求和
+                .in_valid  (&beam_valid),
                 .out_i_8p  (sum_i[e]),
                 .out_q_8p  (sum_q[e]),
                 .out_valid (sum_valid[e])

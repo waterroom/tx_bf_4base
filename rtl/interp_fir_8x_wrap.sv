@@ -18,7 +18,7 @@
 // 多相公式: y_p[n] = sum_{j=0}^{5} h[p+8*j] * x[n-j],  p=0..7
 //   每输入样本产生 8 个并行输出 (对应 8 个内插相位)
 //
-// 流水延迟: 3 拍 (输入寄存 1 + MAC 1 + 输出寄存 1)
+// 流水延迟: 6 拍 (输入寄存 1 + 移位寄存 1 + 乘法 1 + 两两相加 1 + 三输入求和 1 + 输出 1)
 // =============================================================================
 
 `ifndef INTERP_FIR_8X_WRAP_SV
@@ -88,12 +88,59 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // MAC: 每通道每相位 6 抽头乘加
-    // 内部位宽: IN_W + COEF_W + clog2(TAPS_PER_PHASE) = 18+16+3 = 37
+    // ---------- 流水 MAC: 6 抽头乘加, 3 级流水 (时序友好) ----------
+    //   Stage A: 6 个并行乘法 (各 1 个 DSP, 寄存)
+    //   Stage B: 两两相加 (p0+p1)(p2+p3)(p4+p5), 寄存
+    //   Stage C: 三输入求和, 得 mac_out
+    // 每级仅 1 次乘法或 1~2 级加法, 300MHz 可收敛
+    localparam int P_W = IN_W + COEF_W;              // 34 (乘积位宽)
     localparam int ACC_W = IN_W + COEF_W + $clog2(TAPS_PER_PHASE);  // 37
+    logic signed [P_W-1:0]   prod    [N_CH-1:0][N_PAR-1:0][TAPS_PER_PHASE-1:0];
+    logic signed [P_W:0]     pair01  [N_CH-1:0][N_PAR-1:0];
+    logic signed [P_W:0]     pair23  [N_CH-1:0][N_PAR-1:0];
+    logic signed [P_W:0]     pair45  [N_CH-1:0][N_PAR-1:0];
     logic signed [ACC_W-1:0] mac_out [N_CH-1:0][N_PAR-1:0];
-    logic signed [ACC_W-1:0] acc_calc;   // 显式累加器 (避免 automatic 变量歧义)
-    logic v_mac;
+    logic v_prod, v_pair, v_mac;
+
+    // Stage A: 6 个并行乘积
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int c = 0; c < N_CH; c++)
+                for (int p = 0; p < N_PAR; p++)
+                    for (int j = 0; j < TAPS_PER_PHASE; j++)
+                        prod[c][p][j] <= '0;
+            v_prod <= 1'b0;
+        end else begin
+            for (int c = 0; c < N_CH; c++)
+                for (int p = 0; p < N_PAR; p++)
+                    for (int j = 0; j < TAPS_PER_PHASE; j++)
+                        prod[c][p][j] <= shift_reg[c][j] * COEFF[p + N_PAR*j];
+            v_prod <= v_in;
+        end
+    end
+
+    // Stage B: 两两相加
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int c = 0; c < N_CH; c++)
+                for (int p = 0; p < N_PAR; p++) begin
+                    pair01[c][p] <= '0;
+                    pair23[c][p] <= '0;
+                    pair45[c][p] <= '0;
+                end
+            v_pair <= 1'b0;
+        end else begin
+            for (int c = 0; c < N_CH; c++)
+                for (int p = 0; p < N_PAR; p++) begin
+                    pair01[c][p] <= {prod[c][p][0][P_W-1], prod[c][p][0]} + {prod[c][p][1][P_W-1], prod[c][p][1]};
+                    pair23[c][p] <= {prod[c][p][2][P_W-1], prod[c][p][2]} + {prod[c][p][3][P_W-1], prod[c][p][3]};
+                    pair45[c][p] <= {prod[c][p][4][P_W-1], prod[c][p][4]} + {prod[c][p][5][P_W-1], prod[c][p][5]};
+                end
+            v_pair <= v_prod;
+        end
+    end
+
+    // Stage C: 三输入求和 (2 级加法, 37bit)
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int c = 0; c < N_CH; c++)
@@ -101,17 +148,13 @@ module interp_fir_8x_wrap #(
                     mac_out[c][p] <= '0;
             v_mac <= 1'b0;
         end else begin
-            for (int c = 0; c < N_CH; c++) begin
+            for (int c = 0; c < N_CH; c++)
                 for (int p = 0; p < N_PAR; p++) begin
-                    // y_p = sum_{j=0}^{5} h[p+8*j] * x[n-j]
-                    acc_calc = '0;
-                    for (int j = 0; j < TAPS_PER_PHASE; j++) begin
-                        acc_calc = acc_calc + shift_reg[c][j] * COEFF[p + N_PAR*j];
-                    end
-                    mac_out[c][p] <= acc_calc;
+                    mac_out[c][p] <= {{(ACC_W-P_W-1){pair01[c][p][P_W]}}, pair01[c][p]}
+                                   + {{(ACC_W-P_W-1){pair23[c][p][P_W]}}, pair23[c][p]}
+                                   + {{(ACC_W-P_W-1){pair45[c][p][P_W]}}, pair45[c][p]};
                 end
-            end
-            v_mac <= v_in;
+            v_mac <= v_pair;
         end
     end
 

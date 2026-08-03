@@ -65,14 +65,14 @@ module dds_nco #(
     end
 
     // ---------- 8 并行相位计算 + 查表 ----------
-    // 当前拍产生 8 个连续相位: 用完整 32bit 相位叠加再截断, 保留低位进位,
-    // 避免逐采样截断累加导致的相位误差
+    // 当前拍产生 8 个连续相位: 用完整 32bit 相位叠加再截断, 保留低位进位。
+    // 时序友好: 各并行相位直接从 phase_acc 加常数倍 phase_inc (p 为循环常量,
+    // p*phase_inc 综合为常数乘/移位加), 组合深度仅 1 级, 避免串行加法链。
     logic [PHASE_W-1:0] phase_full [N_PAR-1:0];   // 完整 32bit 并行相位
     logic [PHASE_USE-1:0] phase_q [N_PAR-1:0];    // 截断后相位 (16bit)
     always_comb begin
-        phase_full[0] = phase_acc;
-        for (int p = 1; p < N_PAR; p++)
-            phase_full[p] = phase_full[p-1] + phase_inc;
+        for (int p = 0; p < N_PAR; p++)
+            phase_full[p] = phase_acc + phase_inc * p;
         for (int p = 0; p < N_PAR; p++)
             phase_q[p] = phase_full[p][PHASE_W-1 : PHASE_W-PHASE_USE];
     end
