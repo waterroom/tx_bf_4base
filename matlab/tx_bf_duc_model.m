@@ -21,7 +21,8 @@ function [dac, info] = tx_bf_duc_model(N, cfg)
 %     dac.q_8p   - 同上 Q 分量
 %     info       - 中间信号与配置 (调试用)
 
-    %% ---------- 默认配置 ----------
+    %% ---------- 默认参数 (可直接无参运行) ----------
+    if nargin < 1 || isempty(N), N = 1024; end   % 默认 1024 基带样本
     if nargin < 2 || isempty(cfg)
         cfg = make_default_cfg();
     end
