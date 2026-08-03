@@ -8,11 +8,11 @@ REM    自动化环境加参数跳过暂停: scripts\run_all.bat -nopause
 REM
 REM  流程:
 REM    [1/2] vivado -mode batch -source scripts/run_sim.tcl
-REM           (编译 pkg + TB -> xelab -> xsim, 输出 sim_out/dac_out_8p.log)
-REM    [2/2] matlab -batch analyze_dac_out
-REM           (FFT 频谱验证 4 波束峰: 210/930/-850/-130 MHz)
+REM           (编译 pkg + TB -> xelab -> xsim, 输出 sim_out/dac_out_8elem.log)
+REM    [2/2] matlab -batch tx_bf_verify
+REM           (验证 8 阵元 4 波束峰 + 一致性 + 模型对比)
 REM
-REM  判据: 4 个波束峰实测频率与预期偏差 <1MHz, 峰高 >40dB
+REM  判据: 4 波束峰偏差 <1MHz, 8 阵元一致, FPGA vs 模型一致
 REM ============================================================
 setlocal
 cd /d "%~dp0.."
@@ -27,8 +27,8 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/2] MATLAB 频谱验证 (analyze_dac_out) ...
-"C:\Program Files\Polyspace\R2021a\bin\matlab.exe" -batch "addpath(genpath('matlab')); analyze_dac_out"
+echo [2/2] MATLAB 验证 (tx_bf_verify: 8 阵元 4 波束 + 一致性 + 模型对比) ...
+"C:\Program Files\Polyspace\R2021a\bin\matlab.exe" -batch "addpath(genpath('matlab')); tx_bf_verify(0)"
 if errorlevel 1 (
     echo.
     echo [FAIL] MATLAB 分析失败 (若闪退见 doc/fpga_sim_guide.md FAQ)

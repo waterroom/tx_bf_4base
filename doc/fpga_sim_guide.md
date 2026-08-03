@@ -24,7 +24,7 @@ scripts\run_all.bat
 [1/2] vivado -mode batch -source scripts/run_sim.tcl
       → 编译 tx_bf_pkg.sv → 编译 TB(include 链拉入全部 RTL) → xelab → xsim
       → 输出 sim_out/dac_out_8p.log  (8 并行 I/Q, 2.4GHz 等效, 阵元0)
-[2/2] matlab -batch analyze_dac_out
+[2/2] matlab -batch tx_bf_verify
       → 复数 FFT 频谱, 检查 4 个波束峰
 ```
 
@@ -49,7 +49,7 @@ cd C:\workbuddy_chat\tx_bf_4base
 "C:\Xilinx\Vivado\2022.1\bin\vivado.bat" -mode batch -source scripts/run_sim.tcl
 
 # 验证 (PowerShell, 勿在 git-bash 沙箱直接跑, 见 FAQ-1)
-& "C:\Program Files\Polyspace\R2021a\bin\matlab.exe" -batch "addpath(genpath('matlab')); analyze_dac_out"
+& "C:\Program Files\Polyspace\R2021a\bin\matlab.exe" -batch "addpath(genpath('matlab')); tx_bf_verify"
 ```
 
 ### 3.2 Vivado GUI（可选，适合看波形）

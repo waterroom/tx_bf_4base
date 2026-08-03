@@ -65,7 +65,7 @@ TB 用相对路径写输出：`sim_out/dac_out_8p.log`、`sim_out/dac_out_8elem.
    - `dac_i_8p[0][0..7]` / `dac_q_8p[0][0..7]`（阵元0 的 8 并行 I/Q，**非零即通**）
    - `dac_valid[0]`（valid 脉冲）
    - 或 `bb_i[0]` 输入正弦
-5. 仿真结束自动输出 4 波束频谱验证数据到 `sim_out/`（可用 MATLAB `analyze_dac_out` 分析）
+5. 仿真结束自动输出 4 波束频谱验证数据到 `sim_out/`（可用 MATLAB `tx_bf_verify` 分析）
 
 ## 5. 常见问题
 
@@ -83,6 +83,6 @@ TB 用相对路径写输出：`sim_out/dac_out_8p.log`、`sim_out/dac_out_8elem.
 - GUI 工程是交互调试方式，两者结果应一致（同一 RTL）
 - 想验证 GUI 结果正确性：仿真后把 `sim_out/dac_out_8elem.log` 拷回项目根 `sim_out/`，跑
   ```matlab
-  addpath(genpath('matlab')); analyze_dac_8elem
+  addpath(genpath('matlab')); tx_bf_verify
   ```
   应与命令行仿真结果一致（4 波束 210/930/-850/-130 MHz + 8 阵元一致）

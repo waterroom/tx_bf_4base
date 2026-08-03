@@ -10,10 +10,10 @@ REM ============================================================
 setlocal
 cd /d "%~dp0.."
 
-echo 正在启动 MATLAB 分析 DAC 输出频谱 (4 波束 4 频率)...
+echo 正在启动 MATLAB 验证 FPGA 仿真输出 (8 阵元 × 4 波束 + 模型对比)...
 echo.
 
-"C:\Program Files\Polyspace\R2021a\bin\matlab.exe" -batch "addpath('matlab'); analyze_dac_out"
+"C:\Program Files\Polyspace\R2021a\bin\matlab.exe" -batch "addpath('matlab'); tx_bf_verify(0)"
 
 echo.
 echo 分析完成 (退出码 %ERRORLEVEL%)。
