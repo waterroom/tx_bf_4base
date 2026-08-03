@@ -1,0 +1,45 @@
+# Vivado 生成产物
+*.jou
+*.log
+*.str
+*.bak
+*.wdb
+*.wpc
+*.xml
+*.html
+*.rpx
+Xil*
+*.tmp
+vivado*.zip
+*.vhdx
+*.backup
+*.summary
+*.rpt
+
+# 仿真输出
+sim_out/*
+*.wlf
+*.vsim.wlf
+transcript
+work/
+xvlog.log
+xsim.dir/
+
+# MATLAB 自动文件
+*.asv
+*.m~
+matlab/tb_data/*.hex
+matlab/tb_data/*.mat
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# IP 生成产物（保留 .xci，忽略产物）
+ip/*.log
+ip/Xil*
+ip/*/generate_dump/
+ip/*/synth.log
+ip/*/impl/
+ip/*/*.veo
+ip/*/*.xcix
