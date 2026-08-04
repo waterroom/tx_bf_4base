@@ -23,6 +23,12 @@ function [dac, info] = tx_bf_duc_model(N, cfg)
 
     %% ---------- 默认参数 (可直接无参运行) ----------
     if nargin < 1 || isempty(N), N = 1024; end   % 默认 1024 基带样本
+
+    % 自动加入 utils 路径 (ttd_delay 等辅助函数), 免手动 addpath
+    utilsDir = fullfile(fileparts(mfilename('fullpath')), 'utils');
+    if exist(utilsDir, 'dir') && isempty(strfind(path, utilsDir))
+        addpath(utilsDir);
+    end
     if nargin < 2 || isempty(cfg)
         cfg = make_default_cfg();
     end
