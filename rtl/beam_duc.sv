@@ -117,7 +117,7 @@ module beam_duc #(
     logic signed [DDS_OUT_W-1:0] cos_8p [N_PAR-1:0];
     logic signed [DDS_OUT_W-1:0] sin_8p [N_PAR-1:0];
 
-    dds_nco #(
+    dds_multi_phase_wrap #(
         .PHASE_W (DDS_PHASE_W),
         .OUT_W   (DDS_OUT_W),
         .N_PAR   (N_PAR)
