@@ -55,7 +55,6 @@ module interp_hb_3stage #(
         // ---------- 级1: 300→600 MHz (1×16 → 2×31) ----------
         fir_300to600_87p5pass_hf u_st1 (
             .aclk               (clk),
-            .aresetn            (~rst),
             .s_axis_data_tvalid (in_valid),
             .s_axis_data_tready (),
             .s_axis_data_tdata  (in16),
@@ -68,7 +67,6 @@ module interp_hb_3stage #(
         // ---------- 级2: 600→1200 MHz (2×16 → 4×31) ----------
         fir_600to1200_87p5pass_hf u_st2 (
             .aclk               (clk),
-            .aresetn            (~rst),
             .s_axis_data_tvalid (v1[ch]),
             .s_axis_data_tready (),
             .s_axis_data_tdata  (d2),
@@ -81,7 +79,6 @@ module interp_hb_3stage #(
         // ---------- 级3: 1200→2400 MHz (4×16 → 8×31) ----------
         fir_1200to2400_87p5pass_hf u_st3 (
             .aclk               (clk),
-            .aresetn            (~rst),
             .s_axis_data_tvalid (v2[ch]),
             .s_axis_data_tready (),
             .s_axis_data_tdata  (d3),
