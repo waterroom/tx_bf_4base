@@ -27,20 +27,13 @@ module dds_multi_phase_wrap #(
     output logic signed [OUT_W-1:0]          sin_8p [N_PAR-1:0]
 );
 
-    // ---------- 相位累加器: 每拍前进 N_PAR×phase_inc (8 并行) ----------
-    logic [PHASE_W-1:0] phase_acc;
-    always_ff @(posedge clk) begin
-        if (rst)
-            phase_acc <= phase_offset;
-        else
-            phase_acc <= phase_acc + phase_inc * N_PAR;   // N_PAR 为常量, 常数乘
-    end
-
-    // ---------- 每相位相位字: phase_acc + k×phase_inc (k=0..N_PAR-1) ----------
-    logic [PHASE_W-1:0] phase_k [N_PAR-1:0];
+    // ---------- 每相位静态初始相位: phase_offset + k×phase_inc ----------
+    // 注意: dds_core IP 内部自带相位累加器 (每拍 相位+=频率字),
+    //       外部只需提供每个 DDS 的初始相位偏置 (相邻样本相位差 = phase_inc)
+    logic [PHASE_W-1:0] phase_off_k [N_PAR-1:0];
     always_comb begin
         for (int p = 0; p < N_PAR; p++) begin
-            phase_k[p] = phase_acc + phase_inc * p;        // p 为循环常量, 常数乘
+            phase_off_k[p] = phase_offset + phase_inc * p;   // p 为循环常量, 常数乘
         end
     end
 
@@ -54,7 +47,7 @@ module dds_multi_phase_wrap #(
             .aclken              (1'b1),
             .aresetn             (~rst),
             .s_axis_phase_tvalid (1'b1),
-            .s_axis_phase_tdata  ({phase_k[p], phase_inc}),   // {相位, 频率} 64bit
+            .s_axis_phase_tdata  ({phase_off_k[p], phase_inc}),   // {初始相位, 频率字}; 累加在 IP 内
             .m_axis_data_tvalid  (dds_tvalid[p]),
             .m_axis_data_tdata   (dds_tdata[p])               // {sin, cos} 各 16bit
         );
