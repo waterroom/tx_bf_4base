@@ -58,6 +58,7 @@ USE fir_compiler_v7_2_18.fir_compiler_v7_2_18;
 
 ENTITY fir_1200to2400_87p5pass_hf IS
   PORT (
+    aresetn : IN STD_LOGIC;
     aclk : IN STD_LOGIC;
     s_axis_data_tvalid : IN STD_LOGIC;
     s_axis_data_tready : OUT STD_LOGIC;
@@ -260,7 +261,7 @@ BEGIN
       C_RELOAD_TDATA_WIDTH => 1
     )
     PORT MAP (
-      aresetn => '1',
+      aresetn => aresetn,
       aclk => aclk,
       aclken => '1',
       s_axis_data_tvalid => s_axis_data_tvalid,
