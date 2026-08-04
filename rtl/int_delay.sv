@@ -76,9 +76,13 @@ module int_delay #(
 
     // -------------- 选择输出 --------------
     // sel_r 提前一拍寄存（选通提前，时序友好）；delay_val 超限时钳制到 MAX_DEPTH
+    // 注意: 必须有复位 (sel_r 无复位时 X 传播到 SRL 数组索引, xsim 报 add_1 越界)
     logic [SEL_W-1:0] sel_r;
     always_ff @(posedge clk) begin
-        sel_r <= (delay_val > MAX_DEPTH) ? MAX_DEPTH[SEL_W-1:0] : delay_val[SEL_W-1:0];
+        if (rst)
+            sel_r <= '0;
+        else
+            sel_r <= (delay_val > MAX_DEPTH) ? MAX_DEPTH[SEL_W-1:0] : delay_val[SEL_W-1:0];
     end
 
     // 一级选择：每段按段内地址读出一个抽头（各 SRL32 的地址读 Q 输出）

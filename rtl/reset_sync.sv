@@ -23,7 +23,9 @@ module reset_sync (
 );
 
     // 第 1 级: 异步置位 + 同步释放 (复位时立刻拉高, 释放时同步拉低)
-    logic rst_meta;
+    // 注意: rst_meta 初始 1 (上电即复位态), 避免复位前 rst=X 传播到
+    //       下游同步复位 FF (VHDL IP 内部数组 X 索引会触发 xsim add_1 越界)
+    logic rst_meta = 1'b1;
     always_ff @(posedge clk or negedge async_rst_n) begin
         if (!async_rst_n)
             rst_meta <= 1'b1;     // 异步置位: 复位期间 rst 立即为高
@@ -32,9 +34,12 @@ module reset_sync (
     end
 
     // 第 2 级: 同步去亚稳态, 保证 rst 释放沿严格对齐 clk
+    //          rst 初始 1 (与 rst_meta 一致, 上电即复位态)
+    logic rst_r = 1'b1;
     always_ff @(posedge clk) begin
-        rst <= rst_meta;
+        rst_r <= rst_meta;
     end
+    assign rst = rst_r;
 
 endmodule : reset_sync
 

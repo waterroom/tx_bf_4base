@@ -19,7 +19,7 @@
 `define BEAM_DUC_SV
 
 `include "tx_bf_core.sv"
-`include "interp_fir_8x_wrap.sv"
+`include "interp_hb_3stage.sv"   // 3 级半带 FIR IP 级联 (替代手写 48 抽头 interp_fir_8x_wrap)
 `include "dds_nco.sv"
 `include "cmult_8p.sv"
 import tx_bf_pkg::*;
@@ -90,7 +90,7 @@ module beam_duc #(
     logic signed [FIR_OUT_W-1:0] up_q [N_CH-1:0][N_PAR-1:0];
     logic                        up_valid;
 
-    interp_fir_8x_wrap #(
+    interp_hb_3stage #(
         .IN_W  (FIR_OUT_W),
         .OUT_W (FIR_OUT_W),
         .N_CH  (N_CH),
@@ -104,7 +104,7 @@ module beam_duc #(
         .out_valid(up_valid)
     );
 
-    interp_fir_8x_wrap #(
+    interp_hb_3stage #(
         .IN_W  (FIR_OUT_W),
         .OUT_W (FIR_OUT_W),
         .N_CH  (N_CH),
