@@ -57,11 +57,11 @@ module dds_nco #(
     // 路径: 默认 "ip/coef/sin_quarter.mem" (相对项目根目录, 仿真脚本已 cd 到根目录),
     //       或用 -d SIN_QUARTER_MEM="完整路径" 覆盖
 `ifndef SIN_QUARTER_MEM
-`define SIN_QUARTER_MEM "ip/coef/sin_quarter.mem"
+`define SIN_QUARTER_MEM ip/coef/sin_quarter.mem
 `endif
     logic signed [OUT_W-1:0] sin_lut [0:LUT_DEPTH-1];
     initial begin
-        $readmemh(`SIN_QUARTER_MEM, sin_lut);  // Vivado 综合 + 仿真均支持
+        $readmemh("`SIN_QUARTER_MEM", sin_lut);  // Vivado 综合 + 仿真均支持
     end
 
     // ---------- 8 并行相位计算 + 查表 ----------
