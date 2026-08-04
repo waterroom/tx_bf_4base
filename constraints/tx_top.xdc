@@ -10,6 +10,10 @@ create_clock -period 3.333 -name clk_300m [get_ports clk_300m]
 # ---------- 异步复位: false_path ----------
 set_false_path -from [get_ports async_rst_n] -to [get_clocks clk_300m]
 
+# ---------- 复位树: 高扇出到 256 个 DSP RST 引脚, 限制扇出让综合器复制 ----------
+# (综合 WNS 最差路径 = rst -> DSP RSTP, 布线延迟 5.4ns; 复制复位树后扇出收敛)
+set_property MAX_FANOUT 512 [get_nets rst]
+
 # ---------- APB 配置口: 若异步于 300MHz ----------
 # 假设 APB 时钟与 300MHz 同源; 若异步则取消注释:
 # create_clock -period 10.0 -name apb_clk [get_ports apb_clk]
