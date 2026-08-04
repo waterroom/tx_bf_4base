@@ -126,9 +126,9 @@ function tx_bf_verify(do_plot)
         fprintf('  FAIL ❌  见上方超标项\n');
     end
 
-    % ---- 6. 频谱图 (可选) ----
+    % ---- 6. 频谱图 (可选: 显示 + 保存 PNG) ----
     if do_plot
-        figure('Name', 'tx_bf_verify: FPGA 8 阵元频谱', 'Position', [100 100 960 420]);
+        fig = figure('Name', 'tx_bf_verify: FPGA 8 阵元频谱', 'Position', [100 100 960 420]);
         hold on;
         for e = 1:NE
             sig = complex(I(:,e), Q(:,e));
@@ -143,5 +143,10 @@ function tx_bf_verify(do_plot)
         title('FPGA 仿真 8 阵元 DAC 频谱 (4 波束)');
         xlim([-1200 1200]); ylim([-120 10]);
         legend(arrayfun(@(e) sprintf('阵元%d', e), 0:7, 'uni', 0), 'Location', 'best');
+        % 保存 PNG (rpt/), 命令行模式也能出图
+        outDir = fullfile(fileparts(mfilename('fullpath')), '..', 'rpt');
+        if ~exist(outDir, 'dir'), mkdir(outDir); end
+        saveas(fig, fullfile(outDir, 'tx_bf_verify_spectrum.png'));
+        fprintf('  频谱图已保存: %s\n', fullfile(outDir, 'tx_bf_verify_spectrum.png'));
     end
 end
