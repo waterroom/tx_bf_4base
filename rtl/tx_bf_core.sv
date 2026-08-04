@@ -24,10 +24,6 @@
 `ifndef TX_BF_CORE_SV
 `define TX_BF_CORE_SV
 
-`include "int_delay.sv"
-`include "frac_delay_fir.sv"
-`include "cmult_3dsp.sv"
-
 module tx_bf_core #(
     parameter int unsigned N_CH        = 16,
     parameter int unsigned DATA_W       = 16,

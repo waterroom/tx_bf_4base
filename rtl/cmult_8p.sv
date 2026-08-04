@@ -18,8 +18,6 @@
 
 `ifndef CMULT_8P_SV
 `define CMULT_8P_SV
-
-`include "cmult_3dsp.sv"
 import tx_bf_pkg::*;
 
 module cmult_8p #(

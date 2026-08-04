@@ -75,13 +75,14 @@ if {[catch {exec xvlog -sv rtl/tx_bf_pkg.sv} res]} {
     puts "编译失败:\n$res"; exit 1
 }
 
-# ---------- 3. 编译 TB (include 链拉入全部 RTL) ----------
-#    -i rtl: include 搜索路径
+# ---------- 3. 编译全部 RTL + TB (独立文件, 无 include 链) ----------
+#    -i rtl: include 搜索路径 (fdacoefs 头文件)
 #    LUT 路径: dds_nco 默认 "ip/coef/sin_quarter.mem", 相对项目根目录解析
-#    (xsim 通过 exec 继承本脚本 cd 到的 proj_root 作为工作目录)
-puts "--- 编译 tb_tx_top.sv (include 链拉入全部 RTL) ---"
+puts "--- 编译 RTL + tb_tx_top.sv (独立文件) ---"
+set rtl_files [glob -nocomplain rtl/*.sv]
+set rtl_files [lsearch -all -inline -not -exact $rtl_files rtl/tx_bf_pkg.sv]
 if {[catch {
-    exec xvlog -sv -i rtl tb/tb_tx_top.sv
+    exec xvlog -sv -i rtl {*}$rtl_files tb/tb_tx_top.sv
 } res]} {
     puts "编译失败:\n$res"; exit 1
 }

@@ -17,9 +17,6 @@
 
 `ifndef DDS_MIXER_WRAP_SV
 `define DDS_MIXER_WRAP_SV
-
-`include "dds_nco.sv"
-`include "cmult_8p.sv"
 import tx_bf_pkg::*;
 
 module dds_mixer_wrap #(

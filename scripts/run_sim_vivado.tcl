@@ -45,11 +45,17 @@ foreach n {fir_300to600_87p5pass_hf.vhd fir_600to1200_87p5pass_hf.vhd fir_1200to
     }
 }
 
-# ---------- 3. 编译 SV (pkg + TB include 链) ----------
+# ---------- 3. 编译 SV (pkg + 全部 RTL 独立文件 + TB, 无 include 链) ----------
+#    同时恢复 sources_1 RTL 的 used_in_simulation=true (GUI 层次正常显示子模块)
 puts "=== 编译 SystemVerilog ==="
+foreach f [get_files -of_objects [get_filesets sources_1] -filter {FILE_TYPE == "SystemVerilog"}] {
+    set_property used_in_simulation true $f
+}
 set lut_mem [file join $proj_root "ip" "coef" "sin_quarter.mem"]
 if {[catch {exec xvlog -sv [file join $proj_root "rtl" "tx_bf_pkg.sv"]} res]} { puts "pkg 编译失败:\n$res"; exit 1 }
-if {[catch {exec xvlog -sv -i [file join $proj_root "rtl"] -d SIN_QUARTER_MEM="$lut_mem" [file join $proj_root "tb" "tb_tx_top.sv"]} res]} { puts "TB 编译失败:\n$res"; exit 1 }
+set rtl_files [glob -nocomplain [file join $proj_root "rtl" "*.sv"]]
+set rtl_files [lsearch -all -inline -not -exact $rtl_files [file join $proj_root "rtl" "tx_bf_pkg.sv"]]
+if {[catch {exec xvlog -sv -i [file join $proj_root "rtl"] -d SIN_QUARTER_MEM="$lut_mem" {*}$rtl_files [file join $proj_root "tb" "tb_tx_top.sv"]} res]} { puts "RTL/TB 编译失败:\n$res"; exit 1 }
 
 # ---------- 4. 精化 (链接 IP 预编译库) ----------
 puts "=== xelab (链接 IP 预编译库) ==="

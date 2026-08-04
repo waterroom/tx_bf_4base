@@ -15,11 +15,6 @@
 
 `ifndef TX_TOP_SV
 `define TX_TOP_SV
-
-`include "reset_sync.sv"
-`include "cfg_bus.sv"
-`include "beam_duc.sv"
-`include "sum_4to1.sv"
 import tx_bf_pkg::*;
 
 module tx_top (

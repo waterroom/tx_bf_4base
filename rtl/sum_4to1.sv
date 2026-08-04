@@ -16,8 +16,6 @@
 
 `ifndef SUM_4TO1_SV
 `define SUM_4TO1_SV
-
-`include "add_tree_4.sv"
 import tx_bf_pkg::*;
 
 module sum_4to1 #(

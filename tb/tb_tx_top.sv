@@ -13,8 +13,6 @@
 // =============================================================================
 
 `timescale 1ns/1ps
-
-`include "tx_top.sv"
 import tx_bf_pkg::*;
 
 module tb_tx_top;

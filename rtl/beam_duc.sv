@@ -17,11 +17,6 @@
 
 `ifndef BEAM_DUC_SV
 `define BEAM_DUC_SV
-
-`include "tx_bf_core.sv"
-`include "interp_hb_3stage.sv"   // 3 级半带 FIR IP 级联 (替代手写 48 抽头 interp_fir_8x_wrap)
-`include "dds_nco.sv"
-`include "cmult_8p.sv"
 import tx_bf_pkg::*;
 
 module beam_duc #(
