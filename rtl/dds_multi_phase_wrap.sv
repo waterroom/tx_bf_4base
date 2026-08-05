@@ -38,8 +38,12 @@ module dds_multi_phase_wrap #(
     end
 
     // ---------- N_PAR 个 DDS 核 ----------
+    // 频率字 = N_PAR×phase_inc: DDS 每拍(300M)只前进一步, 但物理上跨过
+    // N_PAR 个样本(2.4G), 相位必须一次增 N_PAR×phase_inc (见下注)
     logic [31:0] dds_tdata  [N_PAR-1:0];
     logic        dds_tvalid [N_PAR-1:0];
+    logic [PHASE_W-1:0] freq_word;
+    assign freq_word = phase_inc * N_PAR;   // 每拍累加 = 8 样本相位增量
 
     for (genvar p = 0; p < N_PAR; p++) begin : g_dds
         dds_core u_dds (
@@ -47,7 +51,7 @@ module dds_multi_phase_wrap #(
             .aclken              (1'b1),
             .aresetn             (~rst),
             .s_axis_phase_tvalid (1'b1),
-            .s_axis_phase_tdata  ({phase_off_k[p], phase_inc}),   // {初始相位, 频率字}; 累加在 IP 内
+            .s_axis_phase_tdata  ({phase_off_k[p], freq_word}),   // {初始相位, 频率字}; 累加在 IP 内
             .m_axis_data_tvalid  (dds_tvalid[p]),
             .m_axis_data_tdata   (dds_tdata[p])               // {sin, cos} 各 16bit
         );
