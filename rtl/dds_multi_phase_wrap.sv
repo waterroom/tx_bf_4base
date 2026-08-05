@@ -43,7 +43,10 @@ module dds_multi_phase_wrap #(
     logic [31:0] dds_tdata  [N_PAR-1:0];
     logic        dds_tvalid [N_PAR-1:0];
     logic [PHASE_W-1:0] freq_word;
-    assign freq_word = phase_inc * N_PAR;   // 每拍累加 = 8 样本相位增量
+    // 每拍跨 N_PAR 个样本, 相位一次增 N_PAR×phase_inc。
+    // N_PAR 为 2 的幂 → 乘 N_PAR = 左移 N_PAR_LOG2 (综合器对常数乘本就优化为移位, 显式写更清晰)
+    localparam int N_PAR_LOG2 = (N_PAR > 1) ? $clog2(N_PAR) : 0;
+    assign freq_word = phase_inc << N_PAR_LOG2;
 
     for (genvar p = 0; p < N_PAR; p++) begin : g_dds
         dds_core u_dds (
