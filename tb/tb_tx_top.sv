@@ -93,10 +93,11 @@ module tb_tx_top;
     integer fout8;
     integer sample_count;   // 仅在下方 always_ff 中驱动 (避免多驱动错误)
     initial begin
-        fout = $fopen("sim_out/dac_out_8p.log", "w");
+        // 用绝对路径: GUI 仿真工作目录不固定, 相对路径会 fopen 失败 (文件写不出)
+        fout = $fopen("C:/workbuddy_chat/tx_bf_4base/sim_out/dac_out_8p.log", "w");
         if (fout == 0) $display("ERROR: 无法打开 sim_out/dac_out_8p.log");
         else           $fdisplay(fout, "# tx_top DAC 输出 (阵元0: 8并行 I/Q)");
-        fout8 = $fopen("sim_out/dac_out_8elem.log", "w");
+        fout8 = $fopen("C:/workbuddy_chat/tx_bf_4base/sim_out/dac_out_8elem.log", "w");
         if (fout8 == 0) $display("ERROR: 无法打开 sim_out/dac_out_8elem.log");
         else           $fdisplay(fout8, "# tx_top DAC 8 阵元 (每行: 8阵元 I/Q, 2.4GHz交织序)");
     end
