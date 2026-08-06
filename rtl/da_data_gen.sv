@@ -15,10 +15,11 @@ import tx_bf_pkg::*;
 
 module da_data_gen (
     input  logic                        dac_coreclk,    // 数据路径时钟 (= clk_300m)
-    // 顶层入口: 高有效异步复位, 本模块内部按时钟域各同步一次,
+    // 顶层入口: 高有效异步复位, 按时钟域分两个输入, 各自同步一次,
     // 之后所有子模块 (decode/tx_top) 均接收同步高有效复位
     // (外部若为低有效复位源, 在 da_data_gen 外面取反接入)
-    input  logic                        arst,
+    input  logic                        arst_dac,       // dac_coreclk 域异步复位 (高有效)
+    input  logic                        arst_cmd,       // cmd_clk 域异步复位 (高有效)
 
     // 64b 并行报文配置接口
     input  logic                        cmd_clk,
@@ -39,17 +40,17 @@ module da_data_gen (
     output logic                        rst_bf_request
 );
 
-    // ---------- 顶层入口: 高有效异步复位按时钟域各同步一次 ----------
+    // ---------- 顶层入口: 各时钟域异步复位各自同步一次 ----------
     // 输出同步高有效 rst_dac/rst_cmd, 分发给内部所有子模块
     logic rst_dac, rst_cmd;
     reset_sync u_rst_dac (
         .clk         (dac_coreclk),
-        .arst        (arst),
+        .arst        (arst_dac),
         .rst         (rst_dac)
     );
     reset_sync u_rst_cmd (
         .clk         (cmd_clk),
-        .arst        (arst),
+        .arst        (arst_cmd),
         .rst         (rst_cmd)
     );
 
