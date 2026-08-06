@@ -19,7 +19,7 @@ module tb_tx_top;
 
     // ---------- 时钟与复位 ----------
     logic clk_300m;
-    logic async_rst_n;
+    logic arst;   // 高有效异步复位 (顶层入口)
     localparam real CLK_PERIOD = 3.333;  // 300MHz
 
     always #(CLK_PERIOD/2.0) clk_300m = ~clk_300m;
@@ -41,7 +41,7 @@ module tb_tx_top;
     // ---------- DUT 例化 ----------
     tx_top_apb u_dut (
         .clk_300m    (clk_300m),
-        .async_rst_n (async_rst_n),
+        .arst        (arst),
         .bb_i        (bb_i),
         .bb_q        (bb_q),
         .bb_valid    (bb_valid),
@@ -67,7 +67,7 @@ module tb_tx_top;
     end
 
     always_ff @(posedge clk_300m) begin
-        if (!async_rst_n) begin
+        if (arst) begin
             for (int b = 0; b < N_BEAM; b++) begin
                 bb_i[b] <= '0;
                 bb_q[b] <= '0;
@@ -103,7 +103,7 @@ module tb_tx_top;
     end
 
     always_ff @(posedge clk_300m) begin
-        if (!async_rst_n) begin
+        if (arst) begin
             sample_count <= 0;
         end else if (capture_en && dac_valid[0]) begin
             for (int p = 0; p < INTERP; p++) begin
@@ -161,7 +161,7 @@ module tb_tx_top;
     initial begin
         // 初始化
         clk_300m    = 0;
-        async_rst_n = 0;
+        arst = 1;
         apb_psel    = 0; apb_penable = 0; apb_pwrite = 0;
         apb_paddr   = 0; apb_pwdata  = 0;
         for (int b = 0; b < N_BEAM; b++) begin
@@ -170,7 +170,7 @@ module tb_tx_top;
 
         // 复位
         #(CLK_PERIOD * 10);
-        async_rst_n = 1;
+        arst = 0;
         #(CLK_PERIOD * 5);
 
         // 配置 4 个波束

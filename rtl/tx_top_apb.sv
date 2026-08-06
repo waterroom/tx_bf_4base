@@ -17,7 +17,7 @@ import tx_bf_pkg::*;
 
 module tx_top_apb (
     input  logic                        clk_300m,
-    input  logic                        async_rst_n,
+    input  logic                        arst,       // 高有效异步复位 (顶层入口, 内部同步)
 
     // 4 路基带复 IQ 输入
     input  logic signed [DATA_W-1:0]    bb_i [N_BEAM-1:0],
@@ -44,7 +44,7 @@ module tx_top_apb (
     logic rst;
     reset_sync u_rst_sync (
         .clk         (clk_300m),
-        .async_rst_n (async_rst_n),
+        .arst        (arst),
         .rst         (rst)
     );
 
