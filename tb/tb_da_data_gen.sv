@@ -56,13 +56,20 @@ module tb_da_data_gen;
 
     // ---------- 基带激励: 4 波束不同频率正弦 ----------
     localparam real bb_freq[4] = '{10e6, 30e6, 50e6, 70e6};
-    real t;
+    real t;  // 唯一驱动源: 下方 always_ff (含复位初始化)
     always_ff @(posedge dac_coreclk) begin
-        t <= t + CLK_PERIOD * 1e-9;
-        for (int b = 0; b < N_BEAM; b++) begin
-            bb_i[b] <= $sin(2*3.14159265*bb_freq[b]*t) * 1000;
-            bb_q[b] <= $cos(2*3.14159265*bb_freq[b]*t) * 1000;
-            bb_valid[b] <= 1;
+        if (!async_rst_n) begin
+            t <= 0;
+            for (int b = 0; b < N_BEAM; b++) begin
+                bb_i[b] <= 0; bb_q[b] <= 0; bb_valid[b] <= 0;
+            end
+        end else begin
+            t <= t + CLK_PERIOD * 1e-9;
+            for (int b = 0; b < N_BEAM; b++) begin
+                bb_i[b] <= $sin(2*3.14159265*bb_freq[b]*t) * 1000;
+                bb_q[b] <= $cos(2*3.14159265*bb_freq[b]*t) * 1000;
+                bb_valid[b] <= 1;
+            end
         end
     end
 
@@ -80,7 +87,6 @@ module tb_da_data_gen;
     // ---------- 主流程 ----------
     logic [63:0] content_q[$];
     initial begin
-        t = 0;
         for (int b = 0; b < N_BEAM; b++) begin bb_i[b] = 0; bb_q[b] = 0; bb_valid[b] = 0; end
 
         // 复位
