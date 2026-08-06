@@ -49,6 +49,29 @@ module tb_decode_cmd_tx_bf;
         .cfg_apply_pulse(cfg_apply_pulse)
     );
 
+    // ---------- load 脉冲采样 (1 拍脉冲需捕获, 电平检查会错过) ----------
+    logic fir_load_seen    [N_BEAM-1:0];
+    logic weight_load_seen [N_BEAM-1:0];
+    logic [$clog2(N_ELEM)-1:0] fir_sel_ch_cap, weight_sel_ch_cap;
+    logic [$clog2(TAPS)-1:0]   fir_addr_cap;
+    logic signed [COEF_W-1:0]  fir_data_cap, weight_re_cap, weight_im_cap;
+    always_ff @(posedge da_clk) begin
+        for (int b = 0; b < N_BEAM; b++) begin
+            if (fir_coef_load[b])   fir_load_seen[b]   <= 1;
+            if (weight_load[b])     weight_load_seen[b] <= 1;
+        end
+        if (|fir_coef_load) begin
+            fir_sel_ch_cap <= fir_sel_ch;
+            fir_addr_cap   <= fir_coef_addr;
+            fir_data_cap   <= fir_coef_data;
+        end
+        if (|weight_load) begin
+            weight_sel_ch_cap <= weight_sel_ch;
+            weight_re_cap     <= weight_re;
+            weight_im_cap     <= weight_im;
+        end
+    end
+
     // ---------- 报文生成器 ----------
     task automatic send_packet(input [31:0] function_id, input logic [63:0] content_q[$]);
         logic [63:0] pkt[$];
@@ -88,10 +111,10 @@ module tb_decode_cmd_tx_bf;
         content_q = {};
         content_q.push_back({32'h6702_0000, 32'h7FFF_0007}); // addr=0x6702+0, data={coef=0x7FFF, tap=7}
         send_packet(32'h0A0C_000B, content_q);
-        // 等待 CDC + 流水
+        // 等待 CDC + 流水 + 脉冲采样
         repeat(30) @(posedge da_clk);
-        if (fir_coef_load[0] !== 1'b1 || fir_sel_ch !== 0 || fir_coef_addr !== 7 || fir_coef_data !== 16'h7FFF) begin
-            $display("  FAIL: fir_coef_load[0]=%b sel_ch=%0d addr=%0d data=%h", fir_coef_load[0], fir_sel_ch, fir_coef_addr, fir_coef_data);
+        if (!fir_load_seen[0] || fir_sel_ch_cap !== 0 || fir_addr_cap !== 7 || fir_data_cap !== 16'h7FFF) begin
+            $display("  FAIL: load_seen[0]=%b sel_ch=%0d addr=%0d data=%h", fir_load_seen[0], fir_sel_ch_cap, fir_addr_cap, fir_data_cap);
             errors++;
         end else $display("  PASS");
         repeat(5) @(posedge da_clk);
@@ -102,8 +125,8 @@ module tb_decode_cmd_tx_bf;
         content_q.push_back({32'h6703_0015, 32'h8000_4000}); // idx=2*8+5=21=0x15, data={im=0x8000, re=0x4000}
         send_packet(32'h0A0C_000B, content_q);
         repeat(30) @(posedge da_clk);
-        if (weight_load[2] !== 1'b1 || weight_sel_ch !== 5 || weight_re !== 16'h4000 || weight_im !== 16'h8000) begin
-            $display("  FAIL: weight_load[2]=%b sel_ch=%0d re=%h im=%h", weight_load[2], weight_sel_ch, weight_re, weight_im);
+        if (!weight_load_seen[2] || weight_sel_ch_cap !== 5 || weight_re_cap !== 16'h4000 || weight_im_cap !== 16'h8000) begin
+            $display("  FAIL: load_seen[2]=%b sel_ch=%0d re=%h im=%h", weight_load_seen[2], weight_sel_ch_cap, weight_re_cap, weight_im_cap);
             errors++;
         end else $display("  PASS");
         repeat(5) @(posedge da_clk);
