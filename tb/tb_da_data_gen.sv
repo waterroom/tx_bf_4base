@@ -122,16 +122,6 @@ module tb_da_data_gen;
 
         // 等待配置生效 + 流水排空
         repeat(200) @(posedge dac_coreclk);
-        // [dbg] 配置诊断: decode 输出 + tx_bf_core 内部系数实际值
-        $display("[dbg] cfg: phase_inc[0]=%h weight_re=%h w_sel=%0d delay[0][0]=%0d",
-            u_dut.cfg_phase_inc[0], u_dut.cfg_weight_re, u_dut.cfg_weight_sel_ch, u_dut.cfg_delay_val[0][0]);
-        $display("[dbg] cfg: fir load0=%b sel=%0d addr=%0d data=%h",
-            u_dut.cfg_fir_load[0], u_dut.cfg_fir_sel_ch, u_dut.cfg_fir_coef_addr, u_dut.cfg_fir_coef_data);
-        $display("[dbg] tx_bf_core: fir coef[7] (b0c0)=%h coef[0]=%h w_re[0]=%h w_im[0]=%h",
-            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[7],
-            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[0],
-            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.w_re[0],
-            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.w_im[0]);
         $display("=== 开始采集 DAC 输出 ===");
         capture_en = 1;
 
