@@ -13,6 +13,7 @@ module tb_decode_cmd_tx_bf;
 
     logic da_clk = 0, cmd_clk = 0;
     logic rst_da_clk = 1, rst_cmd_clk = 1;
+    logic rst_bf = 0;                    // 两片同步门 (phase 提交需 rst_bf 上升沿)
     logic [63:0] cmd_data = 0;
     logic        cmd_data_valid = 0;
 
@@ -41,6 +42,7 @@ module tb_decode_cmd_tx_bf;
         .da_clk(da_clk), .rst_da_clk(rst_da_clk),
         .cmd_clk(cmd_clk), .rst_cmd_clk(rst_cmd_clk),
         .cmd_data(cmd_data), .cmd_data_valid(cmd_data_valid),
+        .rst_bf(rst_bf),
         .delay_val(delay_val), .phase_inc(phase_inc), .phase_offset(phase_offset),
         .fir_coef_load(fir_coef_load), .fir_sel_ch(fir_sel_ch),
         .fir_coef_addr(fir_coef_addr), .fir_coef_data(fir_coef_data),
@@ -149,8 +151,13 @@ module tb_decode_cmd_tx_bf;
         content_q.push_back({32'h6701_0037, 32'h0000_0014}); // delay[3][7]=20 (idx=3*16+7=55=0x37)
         content_q.push_back({32'h6705_0000, 32'h1234_5678}); // phase_inc[0]
         content_q.push_back({32'h6706_0001, 32'hABCD_EF01}); // phase_offset[1]
-        send_packet(32'h0A0C_000B, content_q);  // apply 报文
-        repeat(40) @(posedge da_clk);
+        send_packet(32'h0A0C_000B, content_q);  // apply 报文 (delay 帧尾即提交)
+        // phase 需 rst_bf 上升沿提交 (两片同步门): 模拟主控拉高 rst_bf
+        repeat(10) @(posedge da_clk);
+        rst_bf = 1;
+        repeat(20) @(posedge da_clk);
+        rst_bf = 0;
+        repeat(30) @(posedge da_clk);
         if (delay_val[0][0] !== 10 || phase_inc[0] !== 32'h12345678 || phase_offset[1] !== 32'hABCDEF01) begin
             $display("  FAIL: delay[0][0]=%0d phase_inc[0]=%h phase_offset[1]=%h", delay_val[0][0], phase_inc[0], phase_offset[1]);
             errors++;

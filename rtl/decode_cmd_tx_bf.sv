@@ -240,9 +240,10 @@ module decode_cmd_tx_bf #(
     // ========================================================================
     // 5b. 两片同步提交门: rst_bf 上升沿 (da_clk 域)
     // ========================================================================
-    // rst_bf (外部主控给两片同时拉高) 上升沿时, 提交暂存的 delay/phase
-    // (DDS 频率), 保证两片同拍切换。apply 报文只负责暂存 + 发请求
-    // (cfg_apply_pulse), 真正提交由 rst_bf 同步门触发。
+    // rst_bf (外部主控给两片同时拉高) 上升沿时, 提交暂存的 DDS 频率
+    // (phase_inc/phase_offset), 保证两片同拍切换频率。
+    // delay_val 不等待 rst_bf: apply 报文帧尾 (Function_id==0x0A0C_000B) 即提交;
+    // phase 由 rst_bf 同步门触发 (两片同步切频率)。
     reg rst_bf_r, rst_bf_pulse;
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
@@ -250,7 +251,7 @@ module decode_cmd_tx_bf #(
             rst_bf_pulse <= 0;
         end else begin
             rst_bf_r     <= rst_bf;
-            rst_bf_pulse <= rst_bf & ~rst_bf_r;   // 上升沿 1 拍
+            rst_bf_pulse <= rst_bf & (~rst_bf_r);   // 上升沿 1 拍
         end
     end
 
@@ -290,13 +291,13 @@ module decode_cmd_tx_bf #(
                     delay_val_temp[b][ch_sel] <= da_data_reg[2][$clog2(MAX_DELAY_P+1)-1:0];
         end
     end
-    // apply 提交
+    // apply 提交 (Function_id==0x0A0C_000B 帧尾即提交, 不等 rst_bf)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= '0;
-        end else if (rst_bf_pulse) begin
+        end else if (Function_id_is_0A0C_000B && main_st_is_PACKET_CHEKSUM) begin
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= delay_val_temp[b][c];
