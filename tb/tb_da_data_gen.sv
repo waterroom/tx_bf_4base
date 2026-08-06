@@ -13,6 +13,11 @@ module tb_da_data_gen;
 
     logic dac_coreclk = 0, cmd_clk = 0;
     logic rst_dac = 1, rst_cmd = 1;   // 分时钟域异步复位 (高有效, 内部各自同步)
+    logic rst_bf = 0;              // 两片同步门 (高有效, 模拟主控拉高)
+    logic dac0_nco_0_nco_update_busy = 0;
+    logic [47:0] dac0_nco_0_converter0_nco_freq = 0;
+    logic dac0_nco_0_nco_update_request = 0;
+    logic user_sysref_dac = 0;
     logic [63:0] cmd_data = 0;
     logic        cmd_data_valid = 0;
     logic signed [DATA_W-1:0] bb_i [N_BEAM-1:0];
@@ -29,7 +34,15 @@ module tb_da_data_gen;
 
     // DUT
     da_data_gen u_dut (
-        .dac_coreclk(dac_coreclk), .rst_dac(rst_dac), .rst_cmd(rst_cmd),
+        .dac_coreclk(dac_coreclk), .rst_dac(rst_dac), .rst_cmd(rst_cmd), .rst_bf(rst_bf),
+        .dac0_nco_0_nco_update_busy(dac0_nco_0_nco_update_busy),
+        .dac0_nco_0_converter0_nco_freq(dac0_nco_0_converter0_nco_freq),
+        .dac0_nco_0_nco_update_request(dac0_nco_0_nco_update_request),
+        .user_sysref_dac(user_sysref_dac),
+        .s00_axis_0_tready(1'b1), .s02_axis_0_tready(1'b1),
+        .s10_axis_0_tready(1'b1), .s12_axis_0_tready(1'b1),
+        .s20_axis_0_tready(1'b1), .s22_axis_0_tready(1'b1),
+        .s30_axis_0_tready(1'b1), .s32_axis_0_tready(1'b1),
         .cmd_clk(cmd_clk), .cmd_data(cmd_data), .cmd_data_valid(cmd_data_valid),
         .bb_i(bb_i), .bb_q(bb_q), .bb_valid(bb_valid),
         .dac_i_8p(dac_i_8p), .dac_q_8p(dac_q_8p), .dac_valid(dac_valid),
@@ -118,7 +131,13 @@ module tb_da_data_gen;
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6701_0000 + b*8 + c, 32'h0000_0000});
 
-        send_packet(32'h0A0C_000B, content_q);  // apply
+        send_packet(32'h0A0C_000B, content_q);  // apply (暂存 + rst_bf_request)
+
+        // 模拟主控: 两片同步拉高 rst_bf (≥8 拍滤波) → 提交 DDS 频率 + 复位数据路径
+        repeat(50) @(posedge dac_coreclk);   // 等 apply 报文处理完
+        rst_bf = 1;
+        repeat(20) @(posedge dac_coreclk);   // >8 拍, 8 拍滤波通过 → 提交 phase_inc
+        rst_bf = 0;
 
         // 等待配置生效 + 流水排空
         repeat(200) @(posedge dac_coreclk);

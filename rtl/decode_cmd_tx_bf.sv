@@ -36,6 +36,9 @@ module decode_cmd_tx_bf #(
     input  logic                                              rst_cmd_clk,
     input  logic [CMD_DATA_LEN-1:0]                           cmd_data,
     input  logic                                              cmd_data_valid,
+    // 两片同步门: rst_bf 上升沿时提交暂存的 delay/phase (DDS 频率),
+    // 保证两片 ZU48DR 同一时刻切换频率 (da_data_gen 滤波后提供, 高有效)
+    input  logic                                              rst_bf,
 
     // 每波束×通道整数延时 (apply 提交)
     output logic [$clog2(MAX_DELAY_P+1)-1:0]                  delay_val    [N_BEAM_P-1:0][N_CH_P-1:0],
@@ -233,6 +236,23 @@ module decode_cmd_tx_bf #(
     end
 
     // ========================================================================
+    // 5b. 两片同步提交门: rst_bf 上升沿 (da_clk 域)
+    // ========================================================================
+    // rst_bf (外部主控给两片同时拉高) 上升沿时, 提交暂存的 delay/phase
+    // (DDS 频率), 保证两片同拍切换。apply 报文只负责暂存 + 发请求
+    // (cfg_apply_pulse), 真正提交由 rst_bf 同步门触发。
+    reg rst_bf_r, rst_bf_pulse;
+    always_ff @(posedge da_clk) begin
+        if (rst_da_clk) begin
+            rst_bf_r     <= 0;
+            rst_bf_pulse <= 0;
+        end else begin
+            rst_bf_r     <= rst_bf;
+            rst_bf_pulse <= rst_bf & ~rst_bf_r;   // 上升沿 1 拍
+        end
+    end
+
+    // ========================================================================
     // 6. 寄存器解析 (MESSAGE_CONTENT 状态, da_data_reg[2])
     //    地址码 = da_data_reg[2][63:32], 数据 = da_data_reg[2][31:0]
     //    idx = 地址低 5 位, beam = idx[4:3], ch = idx[2:0]
@@ -268,7 +288,7 @@ module decode_cmd_tx_bf #(
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= '0;
-        end else if (Function_id_is_0A0C_000B && main_st_is_PACKET_CHEKSUM) begin
+        end else if (rst_bf_pulse) begin
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= delay_val_temp[b][c];
@@ -352,7 +372,7 @@ module decode_cmd_tx_bf #(
                 phase_inc[b]    <= '0;
                 phase_offset[b] <= '0;
             end
-        end else if (Function_id_is_0A0C_000B && main_st_is_PACKET_CHEKSUM) begin
+        end else if (rst_bf_pulse) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
                 phase_inc[b]    <= phase_inc_temp[b];
                 phase_offset[b] <= phase_offset_temp[b];

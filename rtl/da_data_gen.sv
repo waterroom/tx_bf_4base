@@ -15,11 +15,11 @@ import tx_bf_pkg::*;
 
 module da_data_gen (
     input  logic                        dac_coreclk,    // 数据路径时钟 (= clk_300m)
-    // 顶层入口: 高有效异步复位, 按时钟域分两个输入, 各自同步一次,
-    // 之后所有子模块 (decode/tx_top) 均接收同步高有效复位
-    // (外部若为低有效复位源, 在 da_data_gen 外面取反接入)
     input  logic                        rst_dac,       // dac_coreclk 域异步复位 (高有效)
-        
+    // 两片 ZU48DR 同步: 切换 DDS 频率时本片拉高 rst_bf_request 请求,
+    // 等待外部主控给两片同时拉高 rst_bf (同步), rst_bf 有效期间提交
+    // 新 DDS 频率 (phase_inc) 并复位数据路径, 实现两片同步切换
+    input  logic                        rst_bf,        // 两片同步复位门 (高有效)
 
     // 64b 并行报文配置接口 
     input  logic                        rst_cmd,  // cmd_clk 域异步复位 (高有效)
@@ -37,8 +37,34 @@ module da_data_gen (
     output logic signed [DAC_W-1:0]     dac_q_8p [N_ELEM-1:0][INTERP-1:0],
     output logic                        dac_valid [N_ELEM-1:0],
 
-    // apply 报文到达脉冲 (运行时重配握手, 可选)
-    output logic                        rst_bf_request
+    // apply 报文到达脉冲 (DDS 频率切换请求, 供外部主控触发两片同步)
+    output logic                        rst_bf_request,
+
+    // ILA probe inputs (调试监控, 板级挂 ILA; 逻辑透传)
+    input  wire                         dac0_nco_0_nco_update_busy,
+    input  wire [47:0]                  dac0_nco_0_converter0_nco_freq,
+    input  wire                         dac0_nco_0_nco_update_request,
+    input  wire                         user_sysref_dac,
+    // AXI-Stream TREADY inputs (ILA 监控用, 逻辑透传)
+    input  wire                         s00_axis_0_tready,
+    input  wire                         s02_axis_0_tready,
+    input  wire                         s10_axis_0_tready,
+    input  wire                         s12_axis_0_tready,
+    input  wire                         s20_axis_0_tready,
+    input  wire                         s22_axis_0_tready,
+    input  wire                         s30_axis_0_tready,
+    input  wire                         s32_axis_0_tready,
+
+    // DAC data outputs (AXI-Stream TDATA, 每路 256bit = 8 并行 × 交替 {I,Q} 16bit)
+    // s00=阵元0, s02=阵元1, s10=阵元2, s12=阵元3, s20=阵元4, s22=阵元5, s30=阵元6, s32=阵元7
+    output logic [INTERP*32-1:0]        s00_axis_0_tdata,
+    output logic [INTERP*32-1:0]        s02_axis_0_tdata,
+    output logic [INTERP*32-1:0]        s10_axis_0_tdata,
+    output logic [INTERP*32-1:0]        s12_axis_0_tdata,
+    output logic [INTERP*32-1:0]        s20_axis_0_tdata,
+    output logic [INTERP*32-1:0]        s22_axis_0_tdata,
+    output logic [INTERP*32-1:0]        s30_axis_0_tdata,
+    output logic [INTERP*32-1:0]        s32_axis_0_tdata
 );
 
     // ---------- 顶层入口: 各时钟域异步复位各自同步一次 ----------
@@ -54,6 +80,20 @@ module da_data_gen (
         .arst        (rst_cmd),
         .rst         (rst_cmd_sync)
     );
+
+    // ---------- 两片同步: rst_bf 滤波 + 数据路径复位门 ----------
+    // rst_bf (外部主控给两片同时拉高) 8 拍移位滤波防抖 (参考工程做法),
+    // 有效期间: 提交新 DDS 频率 (decode rst_bf 门) + 复位数据路径 (rst_tx)
+    logic [7:0] rst_bf_reg;
+    always_ff @(posedge dac_coreclk) begin
+        if (rst_dac_sync) rst_bf_reg <= '0;
+        else              rst_bf_reg <= {rst_bf_reg[6:0], rst_bf};
+    end
+    logic rst_bf_filt;
+    assign rst_bf_filt = |rst_bf_reg;   // rst_bf 持续 8 拍以上视为有效
+    // 数据路径复位: 上电复位 OR rst_bf 同步复位 (两片同步切频)
+    logic rst_tx;
+    assign rst_tx = rst_dac_sync | rst_bf_filt;
 
     // ---------- decode 输出 cfg_* ----------
     logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val    [N_BEAM-1:0][N_ELEM-1:0];
@@ -76,6 +116,7 @@ module da_data_gen (
         .rst_cmd_clk     (rst_cmd_sync),
         .cmd_data        (cmd_data),
         .cmd_data_valid  (cmd_data_valid),
+        .rst_bf          (rst_bf_filt),   // 两片同步门: 有效时提交 delay/phase (DDS 频率)
         .delay_val       (cfg_delay_val),
         .phase_inc       (cfg_phase_inc),
         .phase_offset    (cfg_phase_offset),
@@ -94,7 +135,7 @@ module da_data_gen (
     // ---------- tx_top (cfg_* 端口版, 同步高有效复位) ----------
     tx_top u_tx (
         .clk_300m         (dac_coreclk),
-        .rst              (rst_dac_sync),
+        .rst              (rst_tx),
         .bb_i             (bb_i),
         .bb_q             (bb_q),
         .bb_valid         (bb_valid),
@@ -113,6 +154,45 @@ module da_data_gen (
         .dac_q_8p         (dac_q_8p),
         .dac_valid        (dac_valid)
     );
+
+    // ---------- AXI-Stream TDATA 打包 (参考工程格式) ----------
+    // 每路 256bit = 8 并行样本 × 交替 {I[15:0], Q[15:0]}:
+    //   tdata[16*2p+0 +: 16] = I[p], tdata[16*2p+1 +: 16] = Q[p]
+    // 路映射: s00=阵元0, s02=阵元1, s10=阵元2, s12=阵元3,
+    //         s20=阵元4, s22=阵元5, s30=阵元6, s32=阵元7
+    // (SV 允许读 output 端口, 直接打包 dac_i_8p/dac_q_8p)
+    assign s00_axis_0_tdata = {dac_q_8p[0][7], dac_i_8p[0][7], dac_q_8p[0][6], dac_i_8p[0][6],
+                               dac_q_8p[0][5], dac_i_8p[0][5], dac_q_8p[0][4], dac_i_8p[0][4],
+                               dac_q_8p[0][3], dac_i_8p[0][3], dac_q_8p[0][2], dac_i_8p[0][2],
+                               dac_q_8p[0][1], dac_i_8p[0][1], dac_q_8p[0][0], dac_i_8p[0][0]};
+    assign s02_axis_0_tdata = {dac_q_8p[1][7], dac_i_8p[1][7], dac_q_8p[1][6], dac_i_8p[1][6],
+                               dac_q_8p[1][5], dac_i_8p[1][5], dac_q_8p[1][4], dac_i_8p[1][4],
+                               dac_q_8p[1][3], dac_i_8p[1][3], dac_q_8p[1][2], dac_i_8p[1][2],
+                               dac_q_8p[1][1], dac_i_8p[1][1], dac_q_8p[1][0], dac_i_8p[1][0]};
+    assign s10_axis_0_tdata = {dac_q_8p[2][7], dac_i_8p[2][7], dac_q_8p[2][6], dac_i_8p[2][6],
+                               dac_q_8p[2][5], dac_i_8p[2][5], dac_q_8p[2][4], dac_i_8p[2][4],
+                               dac_q_8p[2][3], dac_i_8p[2][3], dac_q_8p[2][2], dac_i_8p[2][2],
+                               dac_q_8p[2][1], dac_i_8p[2][1], dac_q_8p[2][0], dac_i_8p[2][0]};
+    assign s12_axis_0_tdata = {dac_q_8p[3][7], dac_i_8p[3][7], dac_q_8p[3][6], dac_i_8p[3][6],
+                               dac_q_8p[3][5], dac_i_8p[3][5], dac_q_8p[3][4], dac_i_8p[3][4],
+                               dac_q_8p[3][3], dac_i_8p[3][3], dac_q_8p[3][2], dac_i_8p[3][2],
+                               dac_q_8p[3][1], dac_i_8p[3][1], dac_q_8p[3][0], dac_i_8p[3][0]};
+    assign s20_axis_0_tdata = {dac_q_8p[4][7], dac_i_8p[4][7], dac_q_8p[4][6], dac_i_8p[4][6],
+                               dac_q_8p[4][5], dac_i_8p[4][5], dac_q_8p[4][4], dac_i_8p[4][4],
+                               dac_q_8p[4][3], dac_i_8p[4][3], dac_q_8p[4][2], dac_i_8p[4][2],
+                               dac_q_8p[4][1], dac_i_8p[4][1], dac_q_8p[4][0], dac_i_8p[4][0]};
+    assign s22_axis_0_tdata = {dac_q_8p[5][7], dac_i_8p[5][7], dac_q_8p[5][6], dac_i_8p[5][6],
+                               dac_q_8p[5][5], dac_i_8p[5][5], dac_q_8p[5][4], dac_i_8p[5][4],
+                               dac_q_8p[5][3], dac_i_8p[5][3], dac_q_8p[5][2], dac_i_8p[5][2],
+                               dac_q_8p[5][1], dac_i_8p[5][1], dac_q_8p[5][0], dac_i_8p[5][0]};
+    assign s30_axis_0_tdata = {dac_q_8p[6][7], dac_i_8p[6][7], dac_q_8p[6][6], dac_i_8p[6][6],
+                               dac_q_8p[6][5], dac_i_8p[6][5], dac_q_8p[6][4], dac_i_8p[6][4],
+                               dac_q_8p[6][3], dac_i_8p[6][3], dac_q_8p[6][2], dac_i_8p[6][2],
+                               dac_q_8p[6][1], dac_i_8p[6][1], dac_q_8p[6][0], dac_i_8p[6][0]};
+    assign s32_axis_0_tdata = {dac_q_8p[7][7], dac_i_8p[7][7], dac_q_8p[7][6], dac_i_8p[7][6],
+                               dac_q_8p[7][5], dac_i_8p[7][5], dac_q_8p[7][4], dac_i_8p[7][4],
+                               dac_q_8p[7][3], dac_i_8p[7][3], dac_q_8p[7][2], dac_i_8p[7][2],
+                               dac_q_8p[7][1], dac_i_8p[7][1], dac_q_8p[7][0], dac_i_8p[7][0]};
 
 endmodule : da_data_gen
 
