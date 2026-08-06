@@ -1,16 +1,15 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// tx_top.sv  --  顶层: 4 波束 × 8 阵元 → 8 路复数 RF-DAC
+// tx_top.sv  --  数据路径顶层: 4 波束 × 8 阵元 → 8 路复数 RF-DAC
 // =============================================================================
-// 单 FPGA 实体 (ZU48DR RFSoC), 两片 FPGA 组成 16 阵元系统。
-//
+// 配置由外部并行端口 cfg_* 驱动 (decode_cmd_tx_bf 或 cfg_bus 包装均可)。
 // 数据流:
 //   BB1..4 (300MHz 复 IQ) → 4× beam_duc (DBF+内插+上变频) → 4×8路复数 @2.4GHz等效
 //     → 8× sum_4to1 (每阵元求 4 波束之和) → 8 路复数 I/Q (8并行 @300MHz)
-//     → 截位 16bit → 8 路 RF-DAC (AXI-Stream, 复数 I/Q 模式)
+//     → 截位 16bit → 8 路 RF-DAC
 //
-// 内部: reset_sync + cfg_bus + 4 beam_duc + 8 sum_4to1
+// 内部: reset_sync + 4 beam_duc + 8 sum_4to1 + DAC 截位
 // =============================================================================
 
 `ifndef TX_TOP_SV
@@ -26,15 +25,20 @@ module tx_top (
     input  logic signed [DATA_W-1:0]    bb_q [N_BEAM-1:0],
     input  logic                        bb_valid [N_BEAM-1:0],
 
-    // APB 配置接口
-    input  logic                        apb_psel,
-    input  logic                        apb_penable,
-    input  logic                        apb_pwrite,
-    input  logic [15:0]                 apb_paddr,
-    input  logic [31:0]                 apb_pwdata,
-    output logic                        apb_pready,
-    output logic [31:0]                 apb_prdata,
-    output logic                        apb_pslverr,
+    // ---------- 并行配置端口 (由 decode_cmd_tx_bf 或 cfg_bus 驱动) ----------
+    input  logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val   [N_BEAM-1:0][N_ELEM-1:0],
+    input  logic [DDS_PHASE_W-1:0]         cfg_phase_inc   [N_BEAM-1:0],
+    input  logic [DDS_PHASE_W-1:0]         cfg_phase_offset[N_BEAM-1:0],
+    // FIR 系数串行加载 (共享 sel_ch/addr/data, 每波束独立 load 脉冲)
+    input  logic                           cfg_fir_load    [N_BEAM-1:0],
+    input  logic [$clog2(N_ELEM)-1:0]      cfg_fir_sel_ch,
+    input  logic [$clog2(TAPS)-1:0]        cfg_fir_coef_addr,
+    input  logic signed [COEF_W-1:0]       cfg_fir_coef_data,
+    // 复数权重串行加载 (共享 sel_ch/re/im, 每波束独立 load 脉冲)
+    input  logic                           cfg_weight_load [N_BEAM-1:0],
+    input  logic [$clog2(N_ELEM)-1:0]      cfg_weight_sel_ch,
+    input  logic signed [COEF_W-1:0]       cfg_weight_re,
+    input  logic signed [COEF_W-1:0]       cfg_weight_im,
 
     // 8 路 RF-DAC 输出 (复数 I/Q, 8 并行 @300MHz = 2.4Gs/s)
     output logic signed [DAC_W-1:0]     dac_i_8p [N_ELEM-1:0][INTERP-1:0],
@@ -50,50 +54,12 @@ module tx_top (
         .rst         (rst)
     );
 
-    // ---------- 配置总线 ----------
-    logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val [N_BEAM-1:0][N_ELEM-1:0];
-    logic signed [COEF_W-1:0]       cfg_weight_re [N_BEAM-1:0][N_ELEM-1:0];
-    logic signed [COEF_W-1:0]       cfg_weight_im [N_BEAM-1:0][N_ELEM-1:0];
-    logic [DDS_PHASE_W-1:0]         cfg_phase_inc [N_BEAM-1:0];
-    logic [DDS_PHASE_W-1:0]         cfg_phase_offset [N_BEAM-1:0];
-    logic                           cfg_fir_load [N_BEAM-1:0];
-    logic [$clog2(N_ELEM)-1:0]     cfg_fir_sel_ch;
-    logic [$clog2(TAPS)-1:0]       cfg_fir_coef_addr;
-    logic signed [COEF_W-1:0]       cfg_fir_coef_data;
-    logic                           cfg_weight_load [N_BEAM-1:0];
-    logic [$clog2(N_ELEM)-1:0]     cfg_weight_sel_ch;
-
-    cfg_bus u_cfg (
-        .clk             (clk_300m),
-        .rst             (rst),
-        .apb_psel        (apb_psel),
-        .apb_penable     (apb_penable),
-        .apb_pwrite      (apb_pwrite),
-        .apb_paddr       (apb_paddr),
-        .apb_pwdata      (apb_pwdata),
-        .apb_pready      (apb_pready),
-        .apb_prdata      (apb_prdata),
-        .apb_pslverr     (apb_pslverr),
-        .cfg_delay_val   (cfg_delay_val),
-        .cfg_weight_re   (cfg_weight_re),
-        .cfg_weight_im   (cfg_weight_im),
-        .cfg_phase_inc   (cfg_phase_inc),
-        .cfg_phase_offset(cfg_phase_offset),
-        .cfg_fir_load    (cfg_fir_load),
-        .cfg_fir_sel_ch  (cfg_fir_sel_ch),
-        .cfg_fir_coef_addr (cfg_fir_coef_addr),
-        .cfg_fir_coef_data (cfg_fir_coef_data),
-        .cfg_weight_load (cfg_weight_load),
-        .cfg_weight_sel_ch (cfg_weight_sel_ch)
-    );
-
     // ---------- 4 个波束处理单元 ----------
     logic signed [MIXER_OUT_W-1:0] beam_i [N_BEAM-1:0][N_ELEM-1:0][INTERP-1:0];
     logic signed [MIXER_OUT_W-1:0] beam_q [N_BEAM-1:0][N_ELEM-1:0][INTERP-1:0];
     logic                           beam_valid [N_BEAM-1:0];
 
-    // 求和 valid: 4 波束 valid 与 (各波束延迟配置可不同, 等全部就绪再求和)
-    // 注意: beam_valid 是 unpacked array, 归约运算符 & 不适用, 用循环组合求与
+    // 求和 valid: 4 波束 valid 与
     logic beam_valid_all;
     always_comb begin
         beam_valid_all = 1'b1;
@@ -118,12 +84,11 @@ module tx_top (
                 .fir_coef_addr  (cfg_fir_coef_addr),
                 .fir_coef_data  (cfg_fir_coef_data),
                 .fir_sel_ch     (cfg_fir_sel_ch),
-                // 权重串行加载: cfg_bus 写 weight 寄存器时产生 load 脉冲,
-                // 此处取被写通道的 re/im 值, 与 sel_ch 一起送入 tx_bf_core
+                // 权重: 标量直连 (cfg_weight_re/im + cfg_weight_sel_ch 由外部驱动)
                 .weight_load    (cfg_weight_load[b]),
                 .weight_sel_ch  (cfg_weight_sel_ch),
-                .weight_re      (cfg_weight_re[b][cfg_weight_sel_ch]),
-                .weight_im      (cfg_weight_im[b][cfg_weight_sel_ch]),
+                .weight_re      (cfg_weight_re),
+                .weight_im      (cfg_weight_im),
                 .phase_inc      (cfg_phase_inc[b]),
                 .phase_offset   (cfg_phase_offset[b]),
                 .out_i          (beam_i[b]),
@@ -141,7 +106,6 @@ module tx_top (
     genvar e;
     generate
         for (e = 0; e < N_ELEM; e++) begin : g_sum
-            // 打包 4 波束对应阵元 e 的数据
             logic signed [MIXER_OUT_W-1:0] bsum_i_in [3:0][INTERP-1:0];
             logic signed [MIXER_OUT_W-1:0] bsum_q_in [3:0][INTERP-1:0];
             always_comb begin
@@ -162,7 +126,6 @@ module tx_top (
                 .rst       (rst),
                 .in_i_8p   (bsum_i_in),
                 .in_q_8p   (bsum_q_in),
-                // 4 波束 valid 与: 各波束延迟配置可不同, 等全部就绪再求和
                 .in_valid  (beam_valid_all),
                 .out_i_8p  (sum_i[e]),
                 .out_q_8p  (sum_q[e]),
@@ -172,7 +135,6 @@ module tx_top (
     endgenerate
 
     // ---------- DAC 输出截位 (20bit → 16bit, 保符号截高位) ----------
-    // sum 是 20bit (s20), DAC 16bit. 取高 16 位 [19:4], 保留 2bit 增益头。
     genvar d;
     generate
         for (d = 0; d < N_ELEM; d++) begin : g_dac

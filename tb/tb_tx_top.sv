@@ -39,7 +39,7 @@ module tb_tx_top;
     logic                     dac_valid [N_ELEM-1:0];
 
     // ---------- DUT 例化 ----------
-    tx_top u_dut (
+    tx_top_apb u_dut (
         .clk_300m    (clk_300m),
         .async_rst_n (async_rst_n),
         .bb_i        (bb_i),
