@@ -1,22 +1,22 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// dds_nco.sv  --  å¯ç»¼åˆ NCO (ç›¸ä½ç´¯åŠ å™¨ + 1/4 æ³¢æ­£å¼¦ LUT, 8 å¹¶è¡Œè¾“å‡º)
+// dds_nco.sv  --  ¿É×ÛºÏ NCO (ÏàÎ»ÀÛ¼ÓÆ÷ + 1/4 ²¨ÕıÏÒ LUT, 8 ²¢ĞĞÊä³ö)
 // =============================================================================
-// äº§ç”Ÿ 8 å¹¶è¡Œ cos/sin, ç­‰æ•ˆ 2.4GHz é‡‡æ ·ç‡ (æ¯æ‹ 8 ä¸ªè¿ç»­ç›¸ä½)ã€‚
-// 32bit ç›¸ä½ç´¯åŠ å™¨ â†’ æˆªæ–­é«˜ 16bit â†’ 2bit è±¡é™ + 10bit æŸ¥è¡¨ â†’ 16bit cos/sinã€‚
+// ²úÉú 8 ²¢ĞĞ cos/sin, µÈĞ§ 2.4GHz ²ÉÑùÂÊ (Ã¿ÅÄ 8 ¸öÁ¬ĞøÏàÎ»)¡£
+// 32bit ÏàÎ»ÀÛ¼ÓÆ÷ ¡ú ½Ø¶Ï¸ß 16bit ¡ú 2bit ÏóÏŞ + 10bit ²é±í ¡ú 16bit cos/sin¡£
 //
-// å¯ç»¼åˆæ€§: ç›¸ä½ç´¯åŠ å™¨ (FF) + LUT (æ¨æ–­ä¸º BRAM/åˆ†å¸ƒå¼RAM, $readmemh åˆå§‹åŒ–)
-//   Vivado ç»¼åˆæ”¯æŒ $readmemh åˆå§‹åŒ– ROM, ä»¿çœŸç»¼åˆä¸€è‡´ã€‚
-//   ç”¨æˆ·åç»­å¯æ›¿æ¢ä¸º Xilinx DDS Compiler IP ä»¥èŠ‚çœèµ„æº (æ¥å£å…¼å®¹)ã€‚
+// ¿É×ÛºÏĞÔ: ÏàÎ»ÀÛ¼ÓÆ÷ (FF) + LUT (ÍÆ¶ÏÎª BRAM/·Ö²¼Ê½RAM, $readmemh ³õÊ¼»¯)
+//   Vivado ×ÛºÏÖ§³Ö $readmemh ³õÊ¼»¯ ROM, ·ÂÕæ×ÛºÏÒ»ÖÂ¡£
+//   ÓÃ»§ºóĞø¿ÉÌæ»»Îª Xilinx DDS Compiler IP ÒÔ½ÚÊ¡×ÊÔ´ (½Ó¿Ú¼æÈİ)¡£
 //
-// LUT æ–‡ä»¶: scripts/gen_sin_lut.m ç”Ÿæˆ ip/coef/sin_quarter.mem
+// LUT ÎÄ¼ş: scripts/gen_sin_lut.m Éú³É ip/coef/sin_quarter.mem
 //
-// ç«¯å£:
-//   phase_inc    : 32bit ç›¸ä½æ­¥è¿› (f_LO = phase_inc / 2^32 * 2.4GHz)
-//   phase_offset : 32bit ç›¸ä½åˆå€¼
-//   cos_8p/sin_8p: 8 å¹¶è¡Œ 16bit cos/sin è¾“å‡º
-//   æµæ°´å»¶è¿Ÿ: 3 æ‹ (pinc_r é¢„è®¡ç®— 1 + ç´¯åŠ å™¨ 1 + æŸ¥è¡¨å¯„å­˜ 1)
+// ¶Ë¿Ú:
+//   phase_inc    : 32bit ÏàÎ»²½½ø (f_LO = phase_inc / 2^32 * 2.4GHz)
+//   phase_offset : 32bit ÏàÎ»³õÖµ
+//   cos_8p/sin_8p: 8 ²¢ĞĞ 16bit cos/sin Êä³ö
+//   Á÷Ë®ÑÓ³Ù: 3 ÅÄ (pinc_r Ô¤¼ÆËã 1 + ÀÛ¼ÓÆ÷ 1 + ²é±í¼Ä´æ 1)
 // =============================================================================
 
 `ifndef DDS_NCO_SV
@@ -28,7 +28,7 @@ module dds_nco #(
     parameter int unsigned PHASE_W = DDS_PHASE_W,   // 32
     parameter int unsigned OUT_W    = DDS_OUT_W,    // 16
     parameter int unsigned N_PAR    = INTERP,       // 8
-    parameter int unsigned LUT_BITS = 10            // 1/4 æ³¢ LUT åœ°å€ä½å®½ (1024 ç‚¹)
+    parameter int unsigned LUT_BITS = 10            // 1/4 ²¨ LUT µØÖ·Î»¿í (1024 µã)
 )(
     input  logic                      clk,
     input  logic                      rst,
@@ -39,56 +39,56 @@ module dds_nco #(
 );
 
     localparam int LUT_DEPTH = 2**LUT_BITS;         // 1024
-    localparam int PHASE_USE = OUT_W;               // æˆªæ–­åˆ° 16bit æŸ¥è¡¨
-    // è±¡é™: bit[15:14], LUT ç´¢å¼•: bit[13:4] (10bit)
+    localparam int PHASE_USE = OUT_W;               // ½Ø¶Ïµ½ 16bit ²é±í
+    // ÏóÏŞ: bit[15:14], LUT Ë÷Òı: bit[13:4] (10bit)
 
-    // ---------- ç›¸ä½ç´¯åŠ å™¨ ----------
-    // æ¯æ‹ (300MHz) äº§ç”Ÿ N_PAR=8 ä¸ª 2.4GHz é‡‡æ ·, ç›¸ä½æ¯é‡‡æ ·å‰è¿› phase_inc,
-    // å› æ­¤ç´¯åŠ å™¨æ¯æ‹åº”å‰è¿› phase_inc*N_PAR (è·¨æ—¶é’Ÿæ­¥è¿›), æ—¶é’Ÿå†…å¹¶è¡Œé‡‡æ ·
-    // ä¹‹é—´æ‰å‰è¿› 1*phase_incã€‚ä¹˜æ³•åœ¨ 32bit å†…è‡ªåŠ¨å›ç»• (mod 2^32)ã€‚
+    // ---------- ÏàÎ»ÀÛ¼ÓÆ÷ ----------
+    // Ã¿ÅÄ (300MHz) ²úÉú N_PAR=8 ¸ö 2.4GHz ²ÉÑù, ÏàÎ»Ã¿²ÉÑùÇ°½ø phase_inc,
+    // Òò´ËÀÛ¼ÓÆ÷Ã¿ÅÄÓ¦Ç°½ø phase_inc*N_PAR (¿çÊ±ÖÓ²½½ø), Ê±ÖÓÄÚ²¢ĞĞ²ÉÑù
+    // Ö®¼ä²ÅÇ°½ø 1*phase_inc¡£³Ë·¨ÔÚ 32bit ÄÚ×Ô¶¯»ØÈÆ (mod 2^32)¡£
     logic [PHASE_W-1:0] phase_acc;
     always_ff @(posedge clk) begin
         if (rst) phase_acc <= phase_offset;
         else     phase_acc <= phase_acc + phase_inc * N_PAR;
     end
 
-    // ---------- 1/4 æ³¢æ­£å¼¦ LUT (0 ~ Ï€/2, 1024 ç‚¹, 16bit æœ‰ç¬¦å·) ----------
-    // å­˜å‚¨æ— åç§»çš„ 0~Ï€/2 æ­£å¼¦å€¼, å¹…åº¦ [-2^15, 2^15-1]
-    // è·¯å¾„: é»˜è®¤ "ip/coef/sin_quarter.mem" (ç›¸å¯¹é¡¹ç›®æ ¹ç›®å½•, ä»¿çœŸè„šæœ¬å·² cd åˆ°æ ¹ç›®å½•),
-    //       æˆ–ç”¨ -d SIN_QUARTER_MEM="å®Œæ•´è·¯å¾„" è¦†ç›–
+    // ---------- 1/4 ²¨ÕıÏÒ LUT (0 ~ ¦Ğ/2, 1024 µã, 16bit ÓĞ·ûºÅ) ----------
+    // ´æ´¢ÎŞÆ«ÒÆµÄ 0~¦Ğ/2 ÕıÏÒÖµ, ·ù¶È [-2^15, 2^15-1]
+    // Â·¾¶: Ä¬ÈÏ "ip/coef/sin_quarter.mem" (Ïà¶ÔÏîÄ¿¸ùÄ¿Â¼, ·ÂÕæ½Å±¾ÒÑ cd µ½¸ùÄ¿Â¼),
+    //       »òÓÃ -d SIN_QUARTER_MEM="ÍêÕûÂ·¾¶" ¸²¸Ç
 `ifndef SIN_QUARTER_MEM
 `define SIN_QUARTER_MEM ip/coef/sin_quarter.mem
 `endif
     logic signed [OUT_W-1:0] sin_lut [0:LUT_DEPTH-1];
     initial begin
-        $readmemh("`SIN_QUARTER_MEM", sin_lut);  // Vivado ç»¼åˆ + ä»¿çœŸå‡æ”¯æŒ
+        $readmemh("`SIN_QUARTER_MEM", sin_lut);  // Vivado ×ÛºÏ + ·ÂÕæ¾ùÖ§³Ö
     end
 
-    // ---------- 8 å¹¶è¡Œç›¸ä½è®¡ç®— + æŸ¥è¡¨ ----------
-    // å½“å‰æ‹äº§ç”Ÿ 8 ä¸ªè¿ç»­ç›¸ä½: ç”¨å®Œæ•´ 32bit ç›¸ä½å åŠ å†æˆªæ–­, ä¿ç•™ä½ä½è¿›ä½ã€‚
-    // æ—¶åºä¼˜åŒ–: p*phase_inc (å¸¸æ•°ä¹˜, ç»¼åˆä¸ºç§»ä½åŠ ) é¢„è®¡ç®—å¹¶å¯„å­˜ (pinc_r),
-    //   å¹¶è¡Œç›¸ä½ä»…å‰© 1 çº§ 32bit åŠ æ³• (phase_acc + pinc_r[p]), 300MHz å‹å¥½ã€‚
-    //   æ³¨: phase_inc ä¸ºé™æ€é…ç½®, pinc_r ç¨³å®šåç›¸ä½è¿ç»­; åŠ¨æ€åˆ‡æ¢æ—¶éœ€é‡æ–°åŒæ­¥ã€‚
-    logic [PHASE_W-1:0] pinc_r [N_PAR-1:0];      // é¢„è®¡ç®— p*phase_inc (1 æ‹)
+    // ---------- 8 ²¢ĞĞÏàÎ»¼ÆËã + ²é±í ----------
+    // µ±Ç°ÅÄ²úÉú 8 ¸öÁ¬ĞøÏàÎ»: ÓÃÍêÕû 32bit ÏàÎ»µş¼ÓÔÙ½Ø¶Ï, ±£ÁôµÍÎ»½øÎ»¡£
+    // Ê±ĞòÓÅ»¯: p*phase_inc (³£Êı³Ë, ×ÛºÏÎªÒÆÎ»¼Ó) Ô¤¼ÆËã²¢¼Ä´æ (pinc_r),
+    //   ²¢ĞĞÏàÎ»½öÊ£ 1 ¼¶ 32bit ¼Ó·¨ (phase_acc + pinc_r[p]), 300MHz ÓÑºÃ¡£
+    //   ×¢: phase_inc Îª¾²Ì¬ÅäÖÃ, pinc_r ÎÈ¶¨ºóÏàÎ»Á¬Ğø; ¶¯Ì¬ÇĞ»»Ê±ĞèÖØĞÂÍ¬²½¡£
+    logic [PHASE_W-1:0] pinc_r [N_PAR-1:0];      // Ô¤¼ÆËã p*phase_inc (1 ÅÄ)
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int p = 0; p < N_PAR; p++) pinc_r[p] <= '0;
         end else begin
             for (int p = 0; p < N_PAR; p++)
-                pinc_r[p] <= phase_inc * p[3:0];  // p ä¸ºå¾ªç¯å¸¸é‡, å¸¸æ•°ä¹˜æ³•
+                pinc_r[p] <= phase_inc * p[3:0];  // p ÎªÑ­»·³£Á¿, ³£Êı³Ë·¨
         end
     end
 
-    logic [PHASE_W-1:0] phase_full [N_PAR-1:0];   // å®Œæ•´ 32bit å¹¶è¡Œç›¸ä½
-    logic [PHASE_USE-1:0] phase_q [N_PAR-1:0];    // æˆªæ–­åç›¸ä½ (16bit)
+    logic [PHASE_W-1:0] phase_full [N_PAR-1:0];   // ÍêÕû 32bit ²¢ĞĞÏàÎ»
+    logic [PHASE_USE-1:0] phase_q [N_PAR-1:0];    // ½Ø¶ÏºóÏàÎ» (16bit)
     always_comb begin
         for (int p = 0; p < N_PAR; p++)
-            phase_full[p] = phase_acc + pinc_r[p];   // æ·±åº¦ 1 çº§ 32bit åŠ æ³•
+            phase_full[p] = phase_acc + pinc_r[p];   // Éî¶È 1 ¼¶ 32bit ¼Ó·¨
         for (int p = 0; p < N_PAR; p++)
             phase_q[p] = phase_full[p][PHASE_W-1 : PHASE_W-PHASE_USE];
     end
 
-    // è±¡é™ä¸ç´¢å¼•åˆ†è§£: bit[15:14]=è±¡é™, bit[13:4]=LUT ç´¢å¼•
+    // ÏóÏŞÓëË÷Òı·Ö½â: bit[15:14]=ÏóÏŞ, bit[13:4]=LUT Ë÷Òı
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int p = 0; p < N_PAR; p++) begin
@@ -100,13 +100,13 @@ module dds_nco #(
                 automatic logic [1:0]               quad = phase_q[p][PHASE_USE-1 : PHASE_USE-2];
                 automatic logic [LUT_BITS-1:0]      idx  = phase_q[p][PHASE_USE-3 : PHASE_USE-2-LUT_BITS];
                 automatic logic [LUT_BITS-1:0]      idx_inv = LUT_DEPTH - 1 - idx;
-                automatic logic signed [OUT_W-1:0]  s_q, c_q;  // å½“å‰è±¡é™ sin/cos (ç¬¬ä¸€è±¡é™å€¼)
+                automatic logic signed [OUT_W-1:0]  s_q, c_q;  // µ±Ç°ÏóÏŞ sin/cos (µÚÒ»ÏóÏŞÖµ)
 
-                // 1/4 æ³¢å¯¹ç§°: ç¬¬ä¸€è±¡é™ sin=lut[idx], cos=lut[idx_inv]
+                // 1/4 ²¨¶Ô³Æ: µÚÒ»ÏóÏŞ sin=lut[idx], cos=lut[idx_inv]
                 s_q = sin_lut[idx];
                 c_q = sin_lut[idx_inv];
 
-                // æŒ‰è±¡é™è¿˜åŸç¬¦å· (æ ‡å‡†ä¸‰è§’å‡½æ•°è±¡é™è§„åˆ™)
+                // °´ÏóÏŞ»¹Ô­·ûºÅ (±ê×¼Èı½Çº¯ÊıÏóÏŞ¹æÔò)
                 case (quad)
                     2'b00: begin sin_8p[p] <=  s_q;            cos_8p[p] <=  c_q;            end
                     2'b01: begin sin_8p[p] <=  c_q;            cos_8p[p] <= -s_q;            end

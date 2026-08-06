@@ -1,10 +1,10 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// tb_da_data_gen.sv  --  da_data_gen é›†æˆæµ‹è¯• (ç«¯åˆ°ç«¯)
+// tb_da_data_gen.sv  --  da_data_gen ¼¯³É²âÊÔ (¶Ëµ½¶Ë)
 // =============================================================================
-// æŠ¥æ–‡é…ç½® 4 æ³¢æŸ â†’ åŸºå¸¦æ¿€åŠ± â†’ DAC dump
-// éªŒè¯: é…ç½®é“¾è·¯ + æ•°æ®è·¯å¾„ç«¯åˆ°ç«¯ (DAC éé›¶)
+// ±¨ÎÄÅäÖÃ 4 ²¨Êø ¡ú »ù´ø¼¤Àø ¡ú DAC dump
+// ÑéÖ¤: ÅäÖÃÁ´Â· + Êı¾İÂ·¾¶¶Ëµ½¶Ë (DAC ·ÇÁã)
 // =============================================================================
 
 import tx_bf_pkg::*;
@@ -12,7 +12,7 @@ import tx_bf_pkg::*;
 module tb_da_data_gen;
 
     logic dac_coreclk = 0, cmd_clk = 0;
-    logic arst = 1;   // é¡¶å±‚å¼‚æ­¥å¤ä½ (é«˜æœ‰æ•ˆ, å†…éƒ¨åŒæ­¥)
+    logic arst = 1;   // ¶¥²ãÒì²½¸´Î» (¸ßÓĞĞ§, ÄÚ²¿Í¬²½)
     logic [63:0] cmd_data = 0;
     logic        cmd_data_valid = 0;
     logic signed [DATA_W-1:0] bb_i [N_BEAM-1:0];
@@ -36,7 +36,7 @@ module tb_da_data_gen;
         .rst_bf_request(rst_bf_request)
     );
 
-    // ---------- æŠ¥æ–‡ç”Ÿæˆå™¨ (åŒ tb_decode) ----------
+    // ---------- ±¨ÎÄÉú³ÉÆ÷ (Í¬ tb_decode) ----------
     task automatic send_packet(input [31:0] function_id, input logic [63:0] content_q[$]);
         logic [63:0] pkt[$];
         int i;
@@ -55,9 +55,9 @@ module tb_da_data_gen;
         @(posedge cmd_clk); cmd_data_valid <= 0;
     endtask
 
-    // ---------- åŸºå¸¦æ¿€åŠ±: 4 æ³¢æŸä¸åŒé¢‘ç‡æ­£å¼¦ ----------
+    // ---------- »ù´ø¼¤Àø: 4 ²¨Êø²»Í¬ÆµÂÊÕıÏÒ ----------
     localparam real bb_freq[4] = '{10e6, 30e6, 50e6, 70e6};
-    real t;  // å”¯ä¸€é©±åŠ¨æº: ä¸‹æ–¹ always_ff (å«å¤ä½åˆå§‹åŒ–)
+    real t;  // Î¨Ò»Çı¶¯Ô´: ÏÂ·½ always_ff (º¬¸´Î»³õÊ¼»¯)
     always_ff @(posedge dac_coreclk) begin
         if (arst) begin
             t <= 0;
@@ -67,7 +67,7 @@ module tb_da_data_gen;
         end else begin
             t <= t + CLK_PERIOD * 1e-9;
             for (int b = 0; b < N_BEAM; b++) begin
-                // ä¸ tb_tx_top ä¸€è‡´çš„æ¿€åŠ±å†™æ³•: æ˜¾å¼ integer + signed, å¹…åº¦ 0.5*32767
+                // Óë tb_tx_top Ò»ÖÂµÄ¼¤ÀøĞ´·¨: ÏÔÊ½ integer + signed, ·ù¶È 0.5*32767
                 bb_i[b] <= $signed(integer'(0.5 * 32767.0 * $cos(2.0 * 3.14159265 * bb_freq[b] * t)));
                 bb_q[b] <= $signed(integer'(0.5 * 32767.0 * $sin(2.0 * 3.14159265 * bb_freq[b] * t)));
                 bb_valid[b] <= 1;
@@ -86,57 +86,57 @@ module tb_da_data_gen;
         end
     end
 
-    // ---------- ä¸»æµç¨‹ ----------
+    // ---------- Ö÷Á÷³Ì ----------
     logic [63:0] content_q[$];
     initial begin
         for (int b = 0; b < N_BEAM; b++) begin bb_i[b] = 0; bb_q[b] = 0; bb_valid[b] = 0; end
 
-        // å¤ä½
-        arst = 1;   // å¤ä½ (é«˜æœ‰æ•ˆ)
+        // ¸´Î»
+        arst = 1;   // ¸´Î» (¸ßÓĞĞ§)
         repeat(20) @(posedge dac_coreclk);
-        arst = 0;   // é‡Šæ”¾
-        // ç­‰å¾… decode å†… xpm_fifo_async å¤ä½é‡Šæ”¾ (å¦åˆ™ç¬¬ä¸€ä¸ªæŠ¥æ–‡å‰å‡ å­—ä¸¢å¤±)
+        arst = 0;   // ÊÍ·Å
+        // µÈ´ı decode ÄÚ xpm_fifo_async ¸´Î»ÊÍ·Å (·ñÔòµÚÒ»¸ö±¨ÎÄÇ°¼¸×Ö¶ªÊ§)
         repeat(500) @(posedge dac_coreclk);
 
-        // é…ç½®: FIR ç›´é€š + æƒé‡ 1+0j + phase_inc + delay + apply
-        $display("=== å‘é€é…ç½®æŠ¥æ–‡ ===");
+        // ÅäÖÃ: FIR Ö±Í¨ + È¨ÖØ 1+0j + phase_inc + delay + apply
+        $display("=== ·¢ËÍÅäÖÃ±¨ÎÄ ===");
         content_q = {};
-        // FIR åˆ†æ•°å»¶æ—¶ç›´é€šç³»æ•°: æ¯é€šé“ä¸­å¿ƒæŠ½å¤´ tap=7, coef=16384(1.0)
-        // data æ ¼å¼: {coef[15:0], 12'b0, tap[3:0]} â†’ tap=7 ä½ 8 ä½ = 0x70
+        // FIR ·ÖÊıÑÓÊ±Ö±Í¨ÏµÊı: Ã¿Í¨µÀÖĞĞÄ³éÍ· tap=7, coef=16384(1.0)
+        // data ¸ñÊ½: {coef[15:0], 12'b0, tap[3:0]} ¡ú tap=7 µÍ 8 Î» = 0x70
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6702_0000 + b*8 + c, 32'h7FFF_0070});
-        // æƒé‡ (beam0..3, ch0..7, re=0x4000, im=0)
+        // È¨ÖØ (beam0..3, ch0..7, re=0x4000, im=0)
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6703_0000 + b*8 + c, 32'h0000_7FFF});
-        // phase_inc (beam0 = 200MHz â†’ phase_inc = 200e6/2.4e9 * 2^32)
-        content_q.push_back({32'h6705_0000, 32'h36BA2E8B}); // â‰ˆ200MHz
+        // phase_inc (beam0 = 200MHz ¡ú phase_inc = 200e6/2.4e9 * 2^32)
+        content_q.push_back({32'h6705_0000, 32'h36BA2E8B}); // ¡Ö200MHz
         content_q.push_back({32'h6706_0000, 32'h0000_0000}); // phase_offset=0
-        // delay=0 (å…¨éƒ¨)
+        // delay=0 (È«²¿)
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6701_0000 + b*8 + c, 32'h0000_0000});
 
         send_packet(32'h0A0C_000B, content_q);  // apply
 
-        // ç­‰å¾…é…ç½®ç”Ÿæ•ˆ + æµæ°´æ’ç©º
+        // µÈ´ıÅäÖÃÉúĞ§ + Á÷Ë®ÅÅ¿Õ
         repeat(200) @(posedge dac_coreclk);
-        $display("=== å¼€å§‹é‡‡é›† DAC è¾“å‡º ===");
+        $display("=== ¿ªÊ¼²É¼¯ DAC Êä³ö ===");
         capture_en = 1;
 
-        // é‡‡é›† 2000 æ‹
+        // ²É¼¯ 2000 ÅÄ
         repeat(2000) @(posedge dac_coreclk);
         capture_en = 0;
         $fclose(fout);
 
-        $display("=== å®Œæˆ: DAC dump â†’ sim_out/da_data_gen_dac.log ===");
+        $display("=== Íê³É: DAC dump ¡ú sim_out/da_data_gen_dac.log ===");
         $finish;
     end
 
     initial begin
         #500000;
-        $display("ERROR: ä»¿çœŸè¶…æ—¶");
+        $display("ERROR: ·ÂÕæ³¬Ê±");
         $finish;
     end
 

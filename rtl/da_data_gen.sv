@@ -1,12 +1,12 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// da_data_gen.sv  --  é¡¶å±‚å°è£…: 64b æŠ¥æ–‡é…ç½® + tx_top æ•°æ®è·¯å¾„
+// da_data_gen.sv  --  ¶¥²ã·â×°: 64b ±¨ÎÄÅäÖÃ + tx_top Êı¾İÂ·¾¶
 // =============================================================================
-// ä¸¤ç‰‡ ZU48DR å„è‡ªç‹¬ç«‹è¿è¡Œä¸€ä¸ª da_data_gen (8 å…ƒ 4 æ³¢æŸ), åˆè®¡ 16 å…ƒã€‚
-// å†…éƒ¨: reset_syncÃ—2 (dac_clk + cmd_clk) + decode_cmd_tx_bf + tx_top(cfgç«¯å£)
+// Á½Æ¬ ZU48DR ¸÷×Ô¶ÀÁ¢ÔËĞĞÒ»¸ö da_data_gen (8 Ôª 4 ²¨Êø), ºÏ¼Æ 16 Ôª¡£
+// ÄÚ²¿: reset_sync¡Á2 (dac_clk + cmd_clk) + decode_cmd_tx_bf + tx_top(cfg¶Ë¿Ú)
 //
-// ç«¯å£å‚è€ƒ: C:\prj\z669\...\da_data_gen.sv (ç®€åŒ–: å»æ‰ VIO/ILA/DUC IP)
+// ¶Ë¿Ú²Î¿¼: C:\prj\z669\...\da_data_gen.sv (¼ò»¯: È¥µô VIO/ILA/DUC IP)
 // =============================================================================
 
 `ifndef DA_DATA_GEN_SV
@@ -14,33 +14,33 @@
 import tx_bf_pkg::*;
 
 module da_data_gen (
-    input  logic                        dac_coreclk,    // æ•°æ®è·¯å¾„æ—¶é’Ÿ (= clk_300m)
-    // é¡¶å±‚å…¥å£: é«˜æœ‰æ•ˆå¼‚æ­¥å¤ä½, æœ¬æ¨¡å—å†…éƒ¨æŒ‰æ—¶é’ŸåŸŸå„åŒæ­¥ä¸€æ¬¡,
-    // ä¹‹åæ‰€æœ‰å­æ¨¡å— (decode/tx_top) å‡æ¥æ”¶åŒæ­¥é«˜æœ‰æ•ˆå¤ä½
-    // (å¤–éƒ¨è‹¥ä¸ºä½æœ‰æ•ˆå¤ä½æº, åœ¨ da_data_gen å¤–é¢å–åæ¥å…¥)
+    input  logic                        dac_coreclk,    // Êı¾İÂ·¾¶Ê±ÖÓ (= clk_300m)
+    // ¶¥²ãÈë¿Ú: ¸ßÓĞĞ§Òì²½¸´Î», ±¾Ä£¿éÄÚ²¿°´Ê±ÖÓÓò¸÷Í¬²½Ò»´Î,
+    // Ö®ºóËùÓĞ×ÓÄ£¿é (decode/tx_top) ¾ù½ÓÊÕÍ¬²½¸ßÓĞĞ§¸´Î»
+    // (Íâ²¿ÈôÎªµÍÓĞĞ§¸´Î»Ô´, ÔÚ da_data_gen ÍâÃæÈ¡·´½ÓÈë)
     input  logic                        arst,
 
-    // 64b å¹¶è¡ŒæŠ¥æ–‡é…ç½®æ¥å£
+    // 64b ²¢ĞĞ±¨ÎÄÅäÖÃ½Ó¿Ú
     input  logic                        cmd_clk,
     input  logic [63:0]                 cmd_data,
     input  logic                        cmd_data_valid,
 
-    // 4 è·¯åŸºå¸¦å¤ IQ è¾“å…¥ (300MHz)
+    // 4 Â·»ù´ø¸´ IQ ÊäÈë (300MHz)
     input  logic signed [DATA_W-1:0]    bb_i [N_BEAM-1:0],
     input  logic signed [DATA_W-1:0]    bb_q [N_BEAM-1:0],
     input  logic                        bb_valid [N_BEAM-1:0],
 
-    // 8 è·¯ RF-DAC è¾“å‡º (å¤æ•° I/Q, 8 å¹¶è¡Œ @300MHz = 2.4Gs/s)
+    // 8 Â· RF-DAC Êä³ö (¸´Êı I/Q, 8 ²¢ĞĞ @300MHz = 2.4Gs/s)
     output logic signed [DAC_W-1:0]     dac_i_8p [N_ELEM-1:0][INTERP-1:0],
     output logic signed [DAC_W-1:0]     dac_q_8p [N_ELEM-1:0][INTERP-1:0],
     output logic                        dac_valid [N_ELEM-1:0],
 
-    // apply æŠ¥æ–‡åˆ°è¾¾è„‰å†² (è¿è¡Œæ—¶é‡é…æ¡æ‰‹, å¯é€‰)
+    // apply ±¨ÎÄµ½´ïÂö³å (ÔËĞĞÊ±ÖØÅäÎÕÊÖ, ¿ÉÑ¡)
     output logic                        rst_bf_request
 );
 
-    // ---------- é¡¶å±‚å…¥å£: é«˜æœ‰æ•ˆå¼‚æ­¥å¤ä½æŒ‰æ—¶é’ŸåŸŸå„åŒæ­¥ä¸€æ¬¡ ----------
-    // è¾“å‡ºåŒæ­¥é«˜æœ‰æ•ˆ rst_dac/rst_cmd, åˆ†å‘ç»™å†…éƒ¨æ‰€æœ‰å­æ¨¡å—
+    // ---------- ¶¥²ãÈë¿Ú: ¸ßÓĞĞ§Òì²½¸´Î»°´Ê±ÖÓÓò¸÷Í¬²½Ò»´Î ----------
+    // Êä³öÍ¬²½¸ßÓĞĞ§ rst_dac/rst_cmd, ·Ö·¢¸øÄÚ²¿ËùÓĞ×ÓÄ£¿é
     logic rst_dac, rst_cmd;
     reset_sync u_rst_dac (
         .clk         (dac_coreclk),
@@ -53,7 +53,7 @@ module da_data_gen (
         .rst         (rst_cmd)
     );
 
-    // ---------- decode è¾“å‡º cfg_* ----------
+    // ---------- decode Êä³ö cfg_* ----------
     logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val    [N_BEAM-1:0][N_ELEM-1:0];
     logic [DDS_PHASE_W-1:0]         cfg_phase_inc    [N_BEAM-1:0];
     logic [DDS_PHASE_W-1:0]         cfg_phase_offset [N_BEAM-1:0];
@@ -89,7 +89,7 @@ module da_data_gen (
     );
     assign rst_bf_request = cfg_apply_pulse;
 
-    // ---------- tx_top (cfg_* ç«¯å£ç‰ˆ, åŒæ­¥é«˜æœ‰æ•ˆå¤ä½) ----------
+    // ---------- tx_top (cfg_* ¶Ë¿Ú°æ, Í¬²½¸ßÓĞĞ§¸´Î») ----------
     tx_top u_tx (
         .clk_300m         (dac_coreclk),
         .rst              (rst_dac),

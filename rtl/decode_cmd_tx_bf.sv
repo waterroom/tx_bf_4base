@@ -1,19 +1,19 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// decode_cmd_tx_bf.sv  --  64b å¹¶è¡ŒæŠ¥æ–‡é…ç½®è§£ç å™¨ (é€‚é… tx_bf_4base)
+// decode_cmd_tx_bf.sv  --  64b ²¢ĞĞ±¨ÎÄÅäÖÃ½âÂëÆ÷ (ÊÊÅä tx_bf_4base)
 // =============================================================================
-// å‚è€ƒ: C:\prj\z669\...\decode_cmd_tx_bf.sv (å¤ç”¨ CDC FIFO + 11 çŠ¶æ€ FSM + å¸§åè®®)
-// é€‚é…:
-//   - 2D å¯„å­˜å™¨: delay/weight/FIR æŒ‰ beamÃ—ch ç´¢å¼• (idx=beam*8+ch, 0..31)
-//   - FIR ç³»æ•°: æ•°æ®å†…åµŒ tap_addr (data[7:4]), ç«‹å³åŠ è½½ (ä¸ç» apply)
-//   - æƒé‡: ç«‹å³åŠ è½½ (ä¸ç» apply)
-//   - delay/phase_inc/phase_offset: apply æäº¤ (Function_id=0x0A0C_000B)
-//   - æ–°å¢ phase_offset (0x6706), åˆ é™¤ tx_bf_trunc (0x6704)
-//   - phase_inc/offset æ¯æ³¢æŸç‹¬ç«‹ (0x6705/06 + beam)
+// ²Î¿¼: C:\prj\z669\...\decode_cmd_tx_bf.sv (¸´ÓÃ CDC FIFO + 11 ×´Ì¬ FSM + Ö¡Ğ­Òé)
+// ÊÊÅä:
+//   - 2D ¼Ä´æÆ÷: delay/weight/FIR °´ beam¡Ách Ë÷Òı (idx=beam*8+ch, 0..31)
+//   - FIR ÏµÊı: Êı¾İÄÚÇ¶ tap_addr (data[7:4]), Á¢¼´¼ÓÔØ (²»¾­ apply)
+//   - È¨ÖØ: Á¢¼´¼ÓÔØ (²»¾­ apply)
+//   - delay/phase_inc/phase_offset: apply Ìá½» (Function_id=0x0A0C_000B)
+//   - ĞÂÔö phase_offset (0x6706), É¾³ı tx_bf_trunc (0x6704)
+//   - phase_inc/offset Ã¿²¨Êø¶ÀÁ¢ (0x6705/06 + beam)
 //
-// æŠ¥æ–‡æ ¼å¼: 64b å¹¶è¡Œ, å¸§å¤´ 0x7E8118E7, å¸§å°¾ 0x8F9009F8
-// å¯„å­˜å™¨æ˜ å°„: è§ doc/da_data_gen_interface.md
+// ±¨ÎÄ¸ñÊ½: 64b ²¢ĞĞ, Ö¡Í· 0x7E8118E7, Ö¡Î² 0x8F9009F8
+// ¼Ä´æÆ÷Ó³Éä: ¼û doc/da_data_gen_interface.md
 // =============================================================================
 
 `ifndef DECODE_CMD_TX_BF_SV
@@ -37,30 +37,30 @@ module decode_cmd_tx_bf #(
     input  logic [CMD_DATA_LEN-1:0]                           cmd_data,
     input  logic                                              cmd_data_valid,
 
-    // æ¯æ³¢æŸÃ—é€šé“æ•´æ•°å»¶æ—¶ (apply æäº¤)
+    // Ã¿²¨Êø¡ÁÍ¨µÀÕûÊıÑÓÊ± (apply Ìá½»)
     output logic [$clog2(MAX_DELAY_P+1)-1:0]                  delay_val    [N_BEAM_P-1:0][N_CH_P-1:0],
-    // DDS é¢‘ç‡å­—/åˆå§‹ç›¸ä½ (apply æäº¤)
+    // DDS ÆµÂÊ×Ö/³õÊ¼ÏàÎ» (apply Ìá½»)
     output logic [DDS_PHASE_W_P-1:0]                          phase_inc    [N_BEAM_P-1:0],
     output logic [DDS_PHASE_W_P-1:0]                          phase_offset [N_BEAM_P-1:0],
-    // FIR ç³»æ•°ä¸²è¡ŒåŠ è½½ (ç«‹å³)
+    // FIR ÏµÊı´®ĞĞ¼ÓÔØ (Á¢¼´)
     output logic                                              fir_coef_load [N_BEAM_P-1:0],
     output logic [$clog2(N_CH_P)-1:0]                         fir_sel_ch,
     output logic [$clog2(TAPS_P)-1:0]                         fir_coef_addr,
     output logic signed [COEF_W_P-1:0]                        fir_coef_data,
-    // å¤æ•°æƒé‡ä¸²è¡ŒåŠ è½½ (ç«‹å³)
+    // ¸´ÊıÈ¨ÖØ´®ĞĞ¼ÓÔØ (Á¢¼´)
     output logic                                              weight_load  [N_BEAM_P-1:0],
     output logic [$clog2(N_CH_P)-1:0]                         weight_sel_ch,
     output logic signed [COEF_W_P-1:0]                        weight_re,
     output logic signed [COEF_W_P-1:0]                        weight_im,
-    // apply è„‰å†² (æŠ¥æ–‡ Function_id=0x0A0C_000B å‘½ä¸­æ—¶ 1 æ‹)
+    // apply Âö³å (±¨ÎÄ Function_id=0x0A0C_000B ÃüÖĞÊ± 1 ÅÄ)
     output logic                                              cfg_apply_pulse
 );
 
     genvar i;
-    localparam int IDX_W = $clog2(N_BEAM_P * N_CH_P);  // idx ä½å®½ (5bit for 32)
+    localparam int IDX_W = $clog2(N_BEAM_P * N_CH_P);  // idx Î»¿í (5bit for 32)
 
     // ========================================================================
-    // 1. CDC FIFO (cmd_clk â†’ da_clk)
+    // 1. CDC FIFO (cmd_clk ¡ú da_clk)
     // ========================================================================
     wire [63:0]    da_data;
     wire           da_data_valid;
@@ -114,7 +114,7 @@ module decode_cmd_tx_bf #(
     );
 
     // ========================================================================
-    // 2. 8 çº§æµæ°´å¯„å­˜å™¨ (æ—¶åºå¯¹é½)
+    // 2. 8 ¼¶Á÷Ë®¼Ä´æÆ÷ (Ê±Ğò¶ÔÆë)
     // ========================================================================
     reg [63:0]   da_data_reg       [1:8];
     reg [00:0]   da_data_valid_reg [1:8];
@@ -132,7 +132,7 @@ module decode_cmd_tx_bf #(
     endgenerate
 
     // ========================================================================
-    // 3. å¸§å¤´/å¸§å°¾æ£€æµ‹
+    // 3. Ö¡Í·/Ö¡Î²¼ì²â
     // ========================================================================
     reg da_data_63to32_is_7e8118e7;
     reg da_data_31to00_is_8f9009f8;
@@ -142,7 +142,7 @@ module decode_cmd_tx_bf #(
     end
 
     // ========================================================================
-    // 4. 11 çŠ¶æ€ FSM
+    // 4. 11 ×´Ì¬ FSM
     // ========================================================================
     localparam IDLE                = 5'd0;
     localparam PACKET_HEAD         = 5'd1;
@@ -222,7 +222,7 @@ module decode_cmd_tx_bf #(
     end
 
     // ========================================================================
-    // 5. Function_id == 0x0A0C_000B (apply é—¨)
+    // 5. Function_id == 0x0A0C_000B (apply ÃÅ)
     // ========================================================================
     reg Function_id_is_0A0C_000B;
     always_ff @(posedge da_clk) begin
@@ -233,12 +233,12 @@ module decode_cmd_tx_bf #(
     end
 
     // ========================================================================
-    // 6. å¯„å­˜å™¨è§£æ (MESSAGE_CONTENT çŠ¶æ€, da_data_reg[2])
-    //    åœ°å€ç  = da_data_reg[2][63:32], æ•°æ® = da_data_reg[2][31:0]
-    //    idx = åœ°å€ä½ 5 ä½, beam = idx[4:3], ch = idx[2:0]
+    // 6. ¼Ä´æÆ÷½âÎö (MESSAGE_CONTENT ×´Ì¬, da_data_reg[2])
+    //    µØÖ·Âë = da_data_reg[2][63:32], Êı¾İ = da_data_reg[2][31:0]
+    //    idx = µØÖ·µÍ 5 Î», beam = idx[4:3], ch = idx[2:0]
     // ========================================================================
 
-    // åœ°å€ç åŒ¹é…: å–é«˜ 16 ä½åšåŸºå€åˆ¤æ–­, ä½ 16 ä½åš idx
+    // µØÖ·ÂëÆ¥Åä: È¡¸ß 16 Î»×ö»ùÖ·ÅĞ¶Ï, µÍ 16 Î»×ö idx
     wire [31:0] msg_addr = da_data_reg[2][63:32];
     wire [15:0] msg_base = msg_addr[31:16];
     wire [15:0] msg_idx  = msg_addr[15:0];
@@ -248,7 +248,7 @@ module decode_cmd_tx_bf #(
     wire is_0x6705 = (msg_base == 16'h6705);
     wire is_0x6706 = (msg_base == 16'h6706);
 
-    // ---- 6a. delay_val (æš‚å­˜ â†’ apply æäº¤) ----
+    // ---- 6a. delay_val (Ôİ´æ ¡ú apply Ìá½») ----
     logic [$clog2(MAX_DELAY_P+1)-1:0] delay_val_temp [N_BEAM_P-1:0][N_CH_P-1:0];
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
@@ -262,7 +262,7 @@ module decode_cmd_tx_bf #(
                         delay_val_temp[b][c] <= da_data_reg[2][$clog2(MAX_DELAY_P+1)-1:0];
         end
     end
-    // apply æäº¤
+    // apply Ìá½»
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++)
@@ -275,7 +275,7 @@ module decode_cmd_tx_bf #(
         end
     end
 
-    // ---- 6b. FIR ç³»æ•° (ç«‹å³åŠ è½½, æ•°æ®å†…åµŒ tap_addr) ----
+    // ---- 6b. FIR ÏµÊı (Á¢¼´¼ÓÔØ, Êı¾İÄÚÇ¶ tap_addr) ----
     // data[31:16]=coef, [7:4]=tap_addr, idx=beam*8+ch
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
@@ -284,9 +284,9 @@ module decode_cmd_tx_bf #(
             fir_coef_addr <= 0;
             fir_coef_data <= 0;
         end else begin
-            // é»˜è®¤æ¸…é›¶
+            // Ä¬ÈÏÇåÁã
             for (int b = 0; b < N_BEAM_P; b++) fir_coef_load[b] <= 0;
-            // å‘½ä¸­ 0x6702 æ—¶ç«‹å³åŠ è½½
+            // ÃüÖĞ 0x6702 Ê±Á¢¼´¼ÓÔØ
             if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6702) begin
                 for (int b = 0; b < N_BEAM_P; b++) begin
                     for (int c = 0; c < N_CH_P; c++) begin
@@ -302,7 +302,7 @@ module decode_cmd_tx_bf #(
         end
     end
 
-    // ---- 6c. å¤æ•°æƒé‡ (ç«‹å³åŠ è½½) ----
+    // ---- 6c. ¸´ÊıÈ¨ÖØ (Á¢¼´¼ÓÔØ) ----
     // data[31:16]=im, [15:0]=re, idx=beam*8+ch
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
@@ -327,7 +327,7 @@ module decode_cmd_tx_bf #(
         end
     end
 
-    // ---- 6d. phase_inc / phase_offset (æš‚å­˜ â†’ apply æäº¤) ----
+    // ---- 6d. phase_inc / phase_offset (Ôİ´æ ¡ú apply Ìá½») ----
     logic [DDS_PHASE_W_P-1:0] phase_inc_temp    [N_BEAM_P-1:0];
     logic [DDS_PHASE_W_P-1:0] phase_offset_temp [N_BEAM_P-1:0];
     always_ff @(posedge da_clk) begin
@@ -345,7 +345,7 @@ module decode_cmd_tx_bf #(
             end
         end
     end
-    // apply æäº¤
+    // apply Ìá½»
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
@@ -360,7 +360,7 @@ module decode_cmd_tx_bf #(
         end
     end
 
-    // ---- 6e. apply è„‰å†² ----
+    // ---- 6e. apply Âö³å ----
     always_ff @(posedge da_clk) begin
         if (rst_da_clk)
             cfg_apply_pulse <= 0;

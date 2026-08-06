@@ -1,25 +1,25 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// interp_fir_8x_wrap.sv  --  8 å€å†…æ’ FIR åŒ…è£… (8 é€šé“, 8 å¹¶è¡Œè¾“å‡º)
+// interp_fir_8x_wrap.sv  --  8 ±¶ÄÚ²å FIR °ü×° (8 Í¨µÀ, 8 ²¢ĞĞÊä³ö)
 // =============================================================================
-// è¾“å…¥: 8 é€šé“, æ¯é€šé“ 1 æ ·æœ¬/æ‹ @300MHz (å¤ IQ çš„ I æˆ– Q ä¹‹ä¸€, 18bit)
-// è¾“å‡º: 8 é€šé“, æ¯é€šé“ 8 å¹¶è¡Œæ ·æœ¬/æ‹ @300MHz (ç­‰æ•ˆ 2.4GHz)
+// ÊäÈë: 8 Í¨µÀ, Ã¿Í¨µÀ 1 Ñù±¾/ÅÄ @300MHz (¸´ IQ µÄ I »ò Q Ö®Ò», 18bit)
+// Êä³ö: 8 Í¨µÀ, Ã¿Í¨µÀ 8 ²¢ĞĞÑù±¾/ÅÄ @300MHz (µÈĞ§ 2.4GHz)
 //
-// æ»¤æ³¢å™¨: 48 æŠ½å¤´ Type2 çº¿æ€§ç›¸ä½ FIR, 88MHz é€šå¸¦, 8 å€å†…æ’
-//   ç³»æ•°æ¥è‡ª rtl/fdacoefs_fir_300Mto2400M_88Mpass.h (int16, s16,15)
+// ÂË²¨Æ÷: 48 ³éÍ· Type2 ÏßĞÔÏàÎ» FIR, 88MHz Í¨´ø, 8 ±¶ÄÚ²å
+//   ÏµÊıÀ´×Ô rtl/fdacoefs_fir_300Mto2400M_88Mpass.h (int16, s16,15)
 //
-// å®ç°:
-//   - ä»¿çœŸ/é»˜è®¤: å¯ç»¼åˆå¤šç›¸ FIR (8 ç›¸ä½ Ã— 6 æŠ½å¤´/ç›¸ä½, DSP æ¨æ–­)
-//     æ³¨: æ­¤ç‰ˆæœ¬ DSP ç”¨é‡å¤§ (8chÃ—8phÃ—6tap=384 DSP/IQ), ä»…é€‚åˆä»¿çœŸæˆ–å•æ³¢æŸéªŒè¯
-//   - ç»¼åˆä¼˜åŒ–: å®šä¹‰ `USE_XILINX_FIR_IP å®åä¾‹åŒ– Xilinx FIR Compiler IP
-//     (8 é€šé“, 8 å€å†…æ’, å¯¹ç§°ç³»æ•°, å¤šé€šé“æ—¶åˆ†å¤ç”¨ DSP, èµ„æºæœ€ä¼˜)
+// ÊµÏÖ:
+//   - ·ÂÕæ/Ä¬ÈÏ: ¿É×ÛºÏ¶àÏà FIR (8 ÏàÎ» ¡Á 6 ³éÍ·/ÏàÎ», DSP ÍÆ¶Ï)
+//     ×¢: ´Ë°æ±¾ DSP ÓÃÁ¿´ó (8ch¡Á8ph¡Á6tap=384 DSP/IQ), ½öÊÊºÏ·ÂÕæ»òµ¥²¨ÊøÑéÖ¤
+//   - ×ÛºÏÓÅ»¯: ¶¨Òå `USE_XILINX_FIR_IP ºêºóÀı»¯ Xilinx FIR Compiler IP
+//     (8 Í¨µÀ, 8 ±¶ÄÚ²å, ¶Ô³ÆÏµÊı, ¶àÍ¨µÀÊ±·Ö¸´ÓÃ DSP, ×ÊÔ´×îÓÅ)
 //
-// å¤šç›¸å…¬å¼: y_p[n] = sum_{j=0}^{5} h[p+8*j] * x[n-j],  p=0..7
-//   æ¯è¾“å…¥æ ·æœ¬äº§ç”Ÿ 8 ä¸ªå¹¶è¡Œè¾“å‡º (å¯¹åº” 8 ä¸ªå†…æ’ç›¸ä½)
+// ¶àÏà¹«Ê½: y_p[n] = sum_{j=0}^{5} h[p+8*j] * x[n-j],  p=0..7
+//   Ã¿ÊäÈëÑù±¾²úÉú 8 ¸ö²¢ĞĞÊä³ö (¶ÔÓ¦ 8 ¸öÄÚ²åÏàÎ»)
 //
-// æµæ°´å»¶è¿Ÿ: 7 æ‹ (è¾“å…¥å¯„å­˜ 1 + ç§»ä½å¯„å­˜ 1 + ä¹˜æ³• 1 + ä¸¤ä¸¤ç›¸åŠ  1 + ä¸‰è¾“å…¥å’Œ C1 1 + C2 1 + è¾“å‡º 1)
-//   ä¸‰è¾“å…¥å’Œæ‹†ä¸¤çº§: æ¯çº§ä»… 1 ä¸ª 37bit åŠ æ³•, 300MHz æ—¶åºå‹å¥½
+// Á÷Ë®ÑÓ³Ù: 7 ÅÄ (ÊäÈë¼Ä´æ 1 + ÒÆÎ»¼Ä´æ 1 + ³Ë·¨ 1 + Á½Á½Ïà¼Ó 1 + ÈıÊäÈëºÍ C1 1 + C2 1 + Êä³ö 1)
+//   ÈıÊäÈëºÍ²ğÁ½¼¶: Ã¿¼¶½ö 1 ¸ö 37bit ¼Ó·¨, 300MHz Ê±ĞòÓÑºÃ
 // =============================================================================
 
 `ifndef INTERP_FIR_8X_WRAP_SV
@@ -30,20 +30,20 @@ import tx_bf_pkg::*;
 module interp_fir_8x_wrap #(
     parameter int unsigned IN_W   = FIR_OUT_W,    // 18
     parameter int unsigned OUT_W  = FIR_OUT_W,    // 18
-    parameter int unsigned N_CH   = N_ELEM,       // 8 é€šé“
-    parameter int unsigned N_PAR  = INTERP,       // 8 å¹¶è¡Œ
-    parameter int unsigned TAPS   = 48,           // 48 æŠ½å¤´
-    parameter int unsigned COEF_W = 16            // ç³»æ•°ä½å®½
+    parameter int unsigned N_CH   = N_ELEM,       // 8 Í¨µÀ
+    parameter int unsigned N_PAR  = INTERP,       // 8 ²¢ĞĞ
+    parameter int unsigned TAPS   = 48,           // 48 ³éÍ·
+    parameter int unsigned COEF_W = 16            // ÏµÊıÎ»¿í
 )(
     input  logic                      clk,
     input  logic                      rst,
-    input  logic signed [IN_W-1:0]    in_data  [N_CH-1:0],   // 8 é€šé“è¾“å…¥
+    input  logic signed [IN_W-1:0]    in_data  [N_CH-1:0],   // 8 Í¨µÀÊäÈë
     input  logic                      in_valid,
-    output logic signed [OUT_W-1:0]   out_data [N_CH-1:0][N_PAR-1:0], // 8chÃ—8å¹¶è¡Œ
+    output logic signed [OUT_W-1:0]   out_data [N_CH-1:0][N_PAR-1:0], // 8ch¡Á8²¢ĞĞ
     output logic                      out_valid
 );
 
-    // ---------- 48 æŠ½å¤´ç³»æ•° (int16, æ¥è‡ª fdacoefs_fir_300Mto2400M_88Mpass.h) ----------
+    // ---------- 48 ³éÍ·ÏµÊı (int16, À´×Ô fdacoefs_fir_300Mto2400M_88Mpass.h) ----------
     localparam logic signed [COEF_W-1:0] COEFF [0:TAPS-1] = '{
         16'sd8,    16'sd196,  16'sd207,  16'sd275,  16'sd310,  16'sd292,
         16'sd202,  16'sd30,   -16'sd216, -16'sd514, -16'sd818, -16'sd1072,
@@ -56,11 +56,11 @@ module interp_fir_8x_wrap #(
     };
     localparam int TAPS_PER_PHASE = TAPS / N_PAR;   // 6
 
-    // ---------- å¯ç»¼åˆå¤šç›¸ FIR (ä»¿çœŸ/é»˜è®¤) ----------
-    // æ³¨: ç»¼åˆä¼˜åŒ–æ—¶å®šä¹‰ USE_XILINX_FIR_IP æ”¹ç”¨ Xilinx FIR Compiler IP
-    // (æ­¤å¤„æ‰‹å†™ç‰ˆæœ¬ DSP ç”¨é‡å¤§, é€‚åˆä»¿çœŸ)
+    // ---------- ¿É×ÛºÏ¶àÏà FIR (·ÂÕæ/Ä¬ÈÏ) ----------
+    // ×¢: ×ÛºÏÓÅ»¯Ê±¶¨Òå USE_XILINX_FIR_IP ¸ÄÓÃ Xilinx FIR Compiler IP
+    // (´Ë´¦ÊÖĞ´°æ±¾ DSP ÓÃÁ¿´ó, ÊÊºÏ·ÂÕæ)
 
-    // è¾“å…¥å¯„å­˜
+    // ÊäÈë¼Ä´æ
     logic signed [IN_W-1:0] in_r [N_CH-1:0];
     logic v_in;
     always_ff @(posedge clk) begin
@@ -73,7 +73,7 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // æ¯é€šé“ç§»ä½å¯„å­˜å™¨ (6 æ ·æœ¬)
+    // Ã¿Í¨µÀÒÆÎ»¼Ä´æÆ÷ (6 Ñù±¾)
     logic signed [IN_W-1:0] shift_reg [N_CH-1:0][TAPS_PER_PHASE-1:0];
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -89,12 +89,12 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // ---------- æµæ°´ MAC: 6 æŠ½å¤´ä¹˜åŠ , 3 çº§æµæ°´ (æ—¶åºå‹å¥½) ----------
-    //   Stage A: 6 ä¸ªå¹¶è¡Œä¹˜æ³• (å„ 1 ä¸ª DSP, å¯„å­˜)
-    //   Stage B: ä¸¤ä¸¤ç›¸åŠ  (p0+p1)(p2+p3)(p4+p5), å¯„å­˜
-    //   Stage C: ä¸‰è¾“å…¥æ±‚å’Œ, å¾— mac_out
-    // æ¯çº§ä»… 1 æ¬¡ä¹˜æ³•æˆ– 1~2 çº§åŠ æ³•, 300MHz å¯æ”¶æ•›
-    localparam int P_W = IN_W + COEF_W;              // 34 (ä¹˜ç§¯ä½å®½)
+    // ---------- Á÷Ë® MAC: 6 ³éÍ·³Ë¼Ó, 3 ¼¶Á÷Ë® (Ê±ĞòÓÑºÃ) ----------
+    //   Stage A: 6 ¸ö²¢ĞĞ³Ë·¨ (¸÷ 1 ¸ö DSP, ¼Ä´æ)
+    //   Stage B: Á½Á½Ïà¼Ó (p0+p1)(p2+p3)(p4+p5), ¼Ä´æ
+    //   Stage C: ÈıÊäÈëÇóºÍ, µÃ mac_out
+    // Ã¿¼¶½ö 1 ´Î³Ë·¨»ò 1~2 ¼¶¼Ó·¨, 300MHz ¿ÉÊÕÁ²
+    localparam int P_W = IN_W + COEF_W;              // 34 (³Ë»ıÎ»¿í)
     localparam int ACC_W = IN_W + COEF_W + $clog2(TAPS_PER_PHASE);  // 37
     logic signed [P_W-1:0]   prod    [N_CH-1:0][N_PAR-1:0][TAPS_PER_PHASE-1:0];
     logic signed [P_W:0]     pair01  [N_CH-1:0][N_PAR-1:0];
@@ -103,7 +103,7 @@ module interp_fir_8x_wrap #(
     logic signed [ACC_W-1:0] mac_out [N_CH-1:0][N_PAR-1:0];
     logic v_prod, v_pair, v_mac;
 
-    // Stage A: 6 ä¸ªå¹¶è¡Œä¹˜ç§¯
+    // Stage A: 6 ¸ö²¢ĞĞ³Ë»ı
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int c = 0; c < N_CH; c++)
@@ -120,7 +120,7 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // Stage B: ä¸¤ä¸¤ç›¸åŠ 
+    // Stage B: Á½Á½Ïà¼Ó
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int c = 0; c < N_CH; c++)
@@ -141,8 +141,8 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // Stage C: ä¸‰è¾“å…¥æ±‚å’Œæ‹†ä¸¤çº§, æ¯çº§ä»… 1 ä¸ª 37bit åŠ æ³• (æ¶ˆé™¤ 2 çº§åŠ æ³•é“¾)
-    //   C1: sum12 = pair01 + pair23 (å¹¶å¯„å­˜ pair45 å»¶è¿Ÿå¯¹é½)
+    // Stage C: ÈıÊäÈëÇóºÍ²ğÁ½¼¶, Ã¿¼¶½ö 1 ¸ö 37bit ¼Ó·¨ (Ïû³ı 2 ¼¶¼Ó·¨Á´)
+    //   C1: sum12 = pair01 + pair23 (²¢¼Ä´æ pair45 ÑÓ³Ù¶ÔÆë)
     //   C2: mac_out = sum12 + pair45_d1
     logic signed [P_W:0]   pair45_d1 [N_CH-1:0][N_PAR-1:0];
     logic signed [ACC_W-1:0] sum12    [N_CH-1:0][N_PAR-1:0];
@@ -180,11 +180,11 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // è¾“å‡ºå¯„å­˜ + èˆå…¥æˆªä½åˆ° OUT_W
-    // mac_out æ˜¯ 37bit (s37,15: 18bitè¾“å…¥Ã—16bitç³»æ•°=34bitä¹˜ç§¯ + 3bitç´¯åŠ , 15ä½å°æ•°)
-    // æµç¨‹: (acc + 2^14) >>> 15 â†’ 23bit â†’ é¥±å’Œåˆ° 18bit
-    localparam int SHIFT = COEF_W - 1;   // 15 (s16,15 ç³»æ•°, é™¤ä»¥ 32768)
-    localparam int POST_W = ACC_W - SHIFT + 1;  // 23 (èˆå…¥åæ•´æ•°ä½å®½)
+    // Êä³ö¼Ä´æ + ÉáÈë½ØÎ»µ½ OUT_W
+    // mac_out ÊÇ 37bit (s37,15: 18bitÊäÈë¡Á16bitÏµÊı=34bit³Ë»ı + 3bitÀÛ¼Ó, 15Î»Ğ¡Êı)
+    // Á÷³Ì: (acc + 2^14) >>> 15 ¡ú 23bit ¡ú ±¥ºÍµ½ 18bit
+    localparam int SHIFT = COEF_W - 1;   // 15 (s16,15 ÏµÊı, ³ıÒÔ 32768)
+    localparam int POST_W = ACC_W - SHIFT + 1;  // 23 (ÉáÈëºóÕûÊıÎ»¿í)
     function automatic logic signed [OUT_W-1:0] sat_fir(input logic signed [POST_W-1:0] v);
         logic signed [POST_W-1:0] vmax, vmin;
         vmax = (1 << (OUT_W-1)) - 1;     // 2^17 - 1
@@ -203,7 +203,7 @@ module interp_fir_8x_wrap #(
         end else begin
             for (int c = 0; c < N_CH; c++) begin
                 for (int p = 0; p < N_PAR; p++) begin
-                    // å››èˆäº”å…¥: (acc + 2^14) >>> 15
+                    // ËÄÉáÎåÈë: (acc + 2^14) >>> 15
                     automatic logic signed [ACC_W:0] biased;        // 38bit
                     automatic logic signed [POST_W-1:0] shifted;    // 23bit
                     biased  = {mac_out[c][p][ACC_W-1], mac_out[c][p]} + (1 <<< (SHIFT-1));
@@ -215,9 +215,9 @@ module interp_fir_8x_wrap #(
         end
     end
 
-    // TODO (ç»¼åˆä¼˜åŒ–): å®šä¹‰ USE_XILINX_FIR_IP å, æ›¿æ¢ä¸Šæ–¹ä¸º Xilinx FIR Compiler ä¾‹åŒ–
-    // IP é…ç½®: Interpolation=8, 8é€šé“, 48æŠ½å¤´å¯¹ç§°, AXI-Stream, 8å¹¶è¡Œè¾“å‡º
-    // èµ„æº: ~24 DSP/IP (å¯¹ç§°+å¤šç›¸+å¤šé€šé“æ—¶åˆ†), vs æ‰‹å†™ 384 DSP/IQ
+    // TODO (×ÛºÏÓÅ»¯): ¶¨Òå USE_XILINX_FIR_IP ºó, Ìæ»»ÉÏ·½Îª Xilinx FIR Compiler Àı»¯
+    // IP ÅäÖÃ: Interpolation=8, 8Í¨µÀ, 48³éÍ·¶Ô³Æ, AXI-Stream, 8²¢ĞĞÊä³ö
+    // ×ÊÔ´: ~24 DSP/IP (¶Ô³Æ+¶àÏà+¶àÍ¨µÀÊ±·Ö), vs ÊÖĞ´ 384 DSP/IQ
 
 endmodule : interp_fir_8x_wrap
 

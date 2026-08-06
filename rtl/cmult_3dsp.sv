@@ -14,17 +14,17 @@
 //
 // Pipeline (each stage has only 1 operation type):
 //   Cycle 0: Input register
-//   Cycle 1: Addition (a+b, c+d) â€” éœ€è¦ A_W+1 / B_W+1 ä½é˜²æº¢å‡º
+//   Cycle 1: Addition (a+b, c+d) ¡ª ÐèÒª A_W+1 / B_W+1 Î»·ÀÒç³ö
 //   Cycle 2: Multiplication (3 DSP)
 //   Cycle 3: First subtraction (P0-P1, P2-P0)
 //   Cycle 4: Second subtraction ((P2-P0)-P1)
 //   Cycle 5: Round bias + shift  ((x + 2^14) >>> 15)
 //   Cycle 6: Saturate + output register
 //
-// ä½å®½è¯´æ˜Žï¼š
-//   P_W   = A_W + B_W          (P0, P1 çš„ä½å®½)
-//   P2_W  = (A_W+1) + (B_W+1)  (P2 çš„ä½å®½ = P_W+2)
-//   IW    = P_W + 2            (å†…éƒ¨ç»Ÿä¸€ä½å®½ï¼Œè¦†ç›– P2 è·¯å¾„)
+// Î»¿íËµÃ÷£º
+//   P_W   = A_W + B_W          (P0, P1 µÄÎ»¿í)
+//   P2_W  = (A_W+1) + (B_W+1)  (P2 µÄÎ»¿í = P_W+2)
+//   IW    = P_W + 2            (ÄÚ²¿Í³Ò»Î»¿í£¬¸²¸Ç P2 Â·¾¶)
 // =============================================================================
 
 `ifndef CMULT_3DSP_SV
@@ -44,9 +44,9 @@ module cmult_3dsp #(
     output logic                      valid_out
 );
 
-    localparam int unsigned P_W  = A_W + B_W;       // P0/P1 ä½å®½
-    localparam int unsigned P2_W = P_W + 2;         // P2 ä½å®½ (å« sum æ‰©å±•)
-    localparam int unsigned IW   = P_W + 2;         // å†…éƒ¨ç»Ÿä¸€ä½å®½
+    localparam int unsigned P_W  = A_W + B_W;       // P0/P1 Î»¿í
+    localparam int unsigned P2_W = P_W + 2;         // P2 Î»¿í (º¬ sum À©Õ¹)
+    localparam int unsigned IW   = P_W + 2;         // ÄÚ²¿Í³Ò»Î»¿í
 
     // ======== Cycle 0: Input register ========
     logic signed [A_W-1:0] a_re_r, a_im_r;
@@ -61,9 +61,9 @@ module cmult_3dsp #(
         end
     end
 
-    // ======== Cycle 1: Addition (æ‰©å±• 1 ä½é˜²æº¢å‡º) ========
-    logic signed [A_W:0]   a_sum_r;                 // A_W+1 ä½
-    logic signed [B_W:0]   b_sum_r;                 // B_W+1 ä½
+    // ======== Cycle 1: Addition (À©Õ¹ 1 Î»·ÀÒç³ö) ========
+    logic signed [A_W:0]   a_sum_r;                 // A_W+1 Î»
+    logic signed [B_W:0]   b_sum_r;                 // B_W+1 Î»
     logic signed [A_W-1:0] a_re_rr, a_im_rr;
     logic signed [B_W-1:0] b_re_rr, b_im_rr;
     logic                  v1;
@@ -82,8 +82,8 @@ module cmult_3dsp #(
     end
 
     // ======== Cycle 2: Multiplication (3 DSP) ========
-    (* use_dsp = "yes" *) logic signed [P_W-1:0]  p0, p1;   // A_W Ã— B_W
-    (* use_dsp = "yes" *) logic signed [P2_W-1:0] p2;        // (A_W+1) Ã— (B_W+1)
+    (* use_dsp = "yes" *) logic signed [P_W-1:0]  p0, p1;   // A_W ¡Á B_W
+    (* use_dsp = "yes" *) logic signed [P2_W-1:0] p2;        // (A_W+1) ¡Á (B_W+1)
     logic                  v2;
 
     always_ff @(posedge clk) begin
@@ -97,7 +97,7 @@ module cmult_3dsp #(
     end
 
     // ======== Cycle 3: First subtraction ========
-    // ç»Ÿä¸€æ‰©å±•åˆ° IW ä½å†åšå‡æ³•
+    // Í³Ò»À©Õ¹µ½ IW Î»ÔÙ×ö¼õ·¨
     logic signed [IW-1:0] real_r, temp_r;
     logic signed [P_W-1:0] p1_r;
     logic                  v3;
@@ -126,8 +126,8 @@ module cmult_3dsp #(
     end
 
     // ======== Cycle 5: Round bias + shift ((x + 2^14) >>> 15) ========
-    // åŒ¹é… MATLAB round(x/32767)ï¼šåŠ  2^14 åç½®åŽå³ç§» 15 ä½
-    logic signed [IW:0] rounded_re, rounded_im;     // +1 ä½é˜² bias æº¢å‡º
+    // Æ¥Åä MATLAB round(x/32767)£º¼Ó 2^14 Æ«ÖÃºóÓÒÒÆ 15 Î»
+    logic signed [IW:0] rounded_re, rounded_im;     // +1 Î»·À bias Òç³ö
     logic               v5;
 
     always_ff @(posedge clk) begin
@@ -143,7 +143,7 @@ module cmult_3dsp #(
     function automatic logic signed [OUT_W-1:0] sat(input logic signed [IW:0] v);
         logic signed [IW:0] shifted;
         begin
-            shifted = signed'(v >>> 15);            // å³ç§» 15 ä½
+            shifted = signed'(v >>> 15);            // ÓÒÒÆ 15 Î»
             if (shifted >  $signed({1'b0, {(OUT_W-1){1'b1}}})) return {1'b0, {(OUT_W-1){1'b1}}};
             if (shifted < -$signed({1'b0, {(OUT_W-1){1'b1}}})) return {1'b1, {(OUT_W-1){1'b0}}};
             return shifted[OUT_W-1:0];

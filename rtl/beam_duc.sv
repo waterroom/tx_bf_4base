@@ -1,18 +1,18 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// beam_duc.sv  --  å•æ³¢æŸå¤„ç†å•å…ƒ (DBF â†’ å†…æ’ â†’ å¤æ•°ä¸Šå˜é¢‘)
+// beam_duc.sv  --  µ¥²¨Êø´¦Àíµ¥Ôª (DBF ¡ú ÄÚ²å ¡ú ¸´ÊıÉÏ±äÆµ)
 // =============================================================================
-// æ•°æ®æµ:
-//   BB(å¤IQ, 300MHz) â†’ tx_bf_core(8é€šé“DBF) â†’ 8è·¯å¤IQ @300MHz
-//     â†’ interp_fir_8x_wrap Ã—2 (I/Q å„ä¸€, 8å€å†…æ’) â†’ 8è·¯ Ã— 8å¹¶è¡Œå¤IQ @2.4GHzç­‰æ•ˆ
-//     â†’ dds_nco(1ä¸ª, å…±äº«LO) + cmult_8p Ã—8 (æ¯é˜µå…ƒ1ä¸ª, å…±äº«cos/sin) â†’ 8è·¯ Ã— 8å¹¶è¡Œå¤æ•°
+// Êı¾İÁ÷:
+//   BB(¸´IQ, 300MHz) ¡ú tx_bf_core(8Í¨µÀDBF) ¡ú 8Â·¸´IQ @300MHz
+//     ¡ú interp_fir_8x_wrap ¡Á2 (I/Q ¸÷Ò», 8±¶ÄÚ²å) ¡ú 8Â· ¡Á 8²¢ĞĞ¸´IQ @2.4GHzµÈĞ§
+//     ¡ú dds_nco(1¸ö, ¹²ÏíLO) + cmult_8p ¡Á8 (Ã¿ÕóÔª1¸ö, ¹²Ïícos/sin) ¡ú 8Â· ¡Á 8²¢ĞĞ¸´Êı
 //
-// LO æŒ‰æ³¢æŸ: 1 ä¸ª dds_nco äº§ç”Ÿ 8 å¹¶è¡Œ cos/sin, å¹¿æ’­ç»™ 8 ä¸ª cmult_8p (8 é˜µå…ƒå…±äº«)ã€‚
+// LO °´²¨Êø: 1 ¸ö dds_nco ²úÉú 8 ²¢ĞĞ cos/sin, ¹ã²¥¸ø 8 ¸ö cmult_8p (8 ÕóÔª¹²Ïí)¡£
 //
-// è¾“å‡º: 8 é˜µå…ƒå„è‡ªçš„ 8 å¹¶è¡Œå¤æ•° (I+jQ), ä¾› sum_4to1 è·¨æ³¢æŸæ±‚å’Œã€‚
+// Êä³ö: 8 ÕóÔª¸÷×ÔµÄ 8 ²¢ĞĞ¸´Êı (I+jQ), ¹© sum_4to1 ¿ç²¨ÊøÇóºÍ¡£
 //
-// æµæ°´å»¶è¿Ÿ: DBF(delay_val+34) + å†…æ’FIR(3) + cmult_3dsp(7) â‰ˆ delay_val+44 æ‹
+// Á÷Ë®ÑÓ³Ù: DBF(delay_val+34) + ÄÚ²åFIR(3) + cmult_3dsp(7) ¡Ö delay_val+44 ÅÄ
 // =============================================================================
 
 `ifndef BEAM_DUC_SV
@@ -20,16 +20,16 @@
 import tx_bf_pkg::*;
 
 module beam_duc #(
-    parameter int unsigned N_CH   = N_ELEM,        // 8 é˜µå…ƒ
-    parameter int unsigned N_PAR  = INTERP         // 8 å¹¶è¡Œ
+    parameter int unsigned N_CH   = N_ELEM,        // 8 ÕóÔª
+    parameter int unsigned N_PAR  = INTERP         // 8 ²¢ĞĞ
 )(
     input  logic                        clk,
     input  logic                        rst,
-    // åŸºå¸¦è¾“å…¥
+    // »ù´øÊäÈë
     input  logic signed [DATA_W-1:0]    bb_i,
     input  logic signed [DATA_W-1:0]    bb_q,
     input  logic                        bb_valid,
-    // DBF é…ç½® (tx_bf_core)
+    // DBF ÅäÖÃ (tx_bf_core)
     input  logic [$clog2(MAX_DELAY+1)-1:0] delay_val [N_CH-1:0],
     input  logic                        fir_coef_load,
     input  logic [$clog2(TAPS)-1:0]    fir_coef_addr,
@@ -39,16 +39,16 @@ module beam_duc #(
     input  logic [$clog2(N_CH)-1:0]    weight_sel_ch,
     input  logic signed [COEF_W-1:0]   weight_re,
     input  logic signed [COEF_W-1:0]   weight_im,
-    // DDS é…ç½®
+    // DDS ÅäÖÃ
     input  logic [DDS_PHASE_W-1:0]     phase_inc,
     input  logic [DDS_PHASE_W-1:0]     phase_offset,
-    // è¾“å‡º: 8 é˜µå…ƒ Ã— 8 å¹¶è¡Œ å¤æ•° (I+jQ)
+    // Êä³ö: 8 ÕóÔª ¡Á 8 ²¢ĞĞ ¸´Êı (I+jQ)
     output logic signed [MIXER_OUT_W-1:0] out_i [N_CH-1:0][N_PAR-1:0],
     output logic signed [MIXER_OUT_W-1:0] out_q [N_CH-1:0][N_PAR-1:0],
     output logic                        out_valid
 );
 
-    // ---------- 1. DBF: 8 é€šé“ TTD æ³¢æŸå½¢æˆ ----------
+    // ---------- 1. DBF: 8 Í¨µÀ TTD ²¨ÊøĞÎ³É ----------
     logic signed [FIR_OUT_W-1:0] bf_re [N_CH-1:0];
     logic signed [FIR_OUT_W-1:0] bf_im [N_CH-1:0];
     logic                        bf_valid;
@@ -80,7 +80,7 @@ module beam_duc #(
         .out_valid      (bf_valid)
     );
 
-    // ---------- 2. 8 å€å†…æ’: I/Q åˆ†åˆ«å†…æ’, 8 é€šé“å¹¶è¡Œ ----------
+    // ---------- 2. 8 ±¶ÄÚ²å: I/Q ·Ö±ğÄÚ²å, 8 Í¨µÀ²¢ĞĞ ----------
     logic signed [FIR_OUT_W-1:0] up_i [N_CH-1:0][N_PAR-1:0];
     logic signed [FIR_OUT_W-1:0] up_q [N_CH-1:0][N_PAR-1:0];
     logic                        up_valid;
@@ -93,7 +93,7 @@ module beam_duc #(
     ) u_fir_i (
         .clk      (clk),
         .rst      (rst),
-        .in_data  (bf_re),      // 8 é€šé“ I åˆ†é‡
+        .in_data  (bf_re),      // 8 Í¨µÀ I ·ÖÁ¿
         .in_valid (bf_valid),
         .out_data (up_i),
         .out_valid(up_valid)
@@ -107,13 +107,13 @@ module beam_duc #(
     ) u_fir_q (
         .clk      (clk),
         .rst      (rst),
-        .in_data  (bf_im),      // 8 é€šé“ Q åˆ†é‡
+        .in_data  (bf_im),      // 8 Í¨µÀ Q ·ÖÁ¿
         .in_valid (bf_valid),
         .out_data (up_q),
-        .out_valid()            // ä¸ u_fir_i åŒæ­¥
+        .out_valid()            // Óë u_fir_i Í¬²½
     );
 
-    // ---------- 3. NCO: å…±äº« LO, 8 å¹¶è¡Œ cos/sin ----------
+    // ---------- 3. NCO: ¹²Ïí LO, 8 ²¢ĞĞ cos/sin ----------
     logic signed [DDS_OUT_W-1:0] cos_8p [N_PAR-1:0];
     logic signed [DDS_OUT_W-1:0] sin_8p [N_PAR-1:0];
 
@@ -130,7 +130,7 @@ module beam_duc #(
         .sin_8p       (sin_8p)
     );
 
-    // ---------- 4. å¤æ•°æ··é¢‘: 8 é˜µå…ƒå„ 1 ä¸ª cmult_8p, å…±äº« cos/sin ----------
+    // ---------- 4. ¸´Êı»ìÆµ: 8 ÕóÔª¸÷ 1 ¸ö cmult_8p, ¹²Ïí cos/sin ----------
     genvar c;
     generate
         for (c = 0; c < N_CH; c++) begin : g_mix
@@ -152,7 +152,7 @@ module beam_duc #(
                 .out_q_8p  (out_q[c]),
                 .out_valid (mix_v)
             );
-            // 8 è·¯æ··é¢‘ valid ç›¸åŒ, å–ç¬¬ 0 è·¯
+            // 8 Â·»ìÆµ valid ÏàÍ¬, È¡µÚ 0 Â·
             if (c == 0) assign out_valid = mix_v;
         end
     endgenerate

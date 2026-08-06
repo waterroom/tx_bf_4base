@@ -1,14 +1,14 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// tx_top_apb.sv  --  APB è–„åŒ…è£…: cfg_bus + tx_top(cfgç«¯å£)
+// tx_top_apb.sv  --  APB ±¡°ü×°: cfg_bus + tx_top(cfg¶Ë¿Ú)
 // =============================================================================
-// ä¿ç•™åŸ tx_top çš„ APB æ¥å£, å†…éƒ¨æ¡¥æ¥åˆ° cfg_* å¹¶è¡Œç«¯å£çš„ tx_topã€‚
-// tb_tx_top.sv ä»…éœ€æŠŠ DUT å tx_top â†’ tx_top_apb å³å¯å›å½’ã€‚
+// ±£ÁôÔ­ tx_top µÄ APB ½Ó¿Ú, ÄÚ²¿ÇÅ½Óµ½ cfg_* ²¢ĞĞ¶Ë¿ÚµÄ tx_top¡£
+// tb_tx_top.sv ½öĞè°Ñ DUT Ãû tx_top ¡ú tx_top_apb ¼´¿É»Ø¹é¡£
 //
-// æ¡¥æ¥è¯´æ˜: cfg_bus è¾“å‡º weight_re/im ä¸ºæ•°ç»„ [N_BEAM][N_ELEM] + sel_ch,
-//   tx_top æœŸæœ›æ ‡é‡ weight_re/im + sel_ch + load[4]ã€‚
-//   ç”¨ load é«˜çš„æ³¢æŸ b é€‰ä¸­ cfg_weight_re[b][sel_ch] ä½œä¸ºæ ‡é‡è¾“å‡ºã€‚
+// ÇÅ½ÓËµÃ÷: cfg_bus Êä³ö weight_re/im ÎªÊı×é [N_BEAM][N_ELEM] + sel_ch,
+//   tx_top ÆÚÍû±êÁ¿ weight_re/im + sel_ch + load[4]¡£
+//   ÓÃ load ¸ßµÄ²¨Êø b Ñ¡ÖĞ cfg_weight_re[b][sel_ch] ×÷Îª±êÁ¿Êä³ö¡£
 // =============================================================================
 
 `ifndef TX_TOP_APB_SV
@@ -17,14 +17,14 @@ import tx_bf_pkg::*;
 
 module tx_top_apb (
     input  logic                        clk_300m,
-    input  logic                        arst,       // é«˜æœ‰æ•ˆå¼‚æ­¥å¤ä½ (é¡¶å±‚å…¥å£, å†…éƒ¨åŒæ­¥)
+    input  logic                        arst,       // ¸ßÓĞĞ§Òì²½¸´Î» (¶¥²ãÈë¿Ú, ÄÚ²¿Í¬²½)
 
-    // 4 è·¯åŸºå¸¦å¤ IQ è¾“å…¥
+    // 4 Â·»ù´ø¸´ IQ ÊäÈë
     input  logic signed [DATA_W-1:0]    bb_i [N_BEAM-1:0],
     input  logic signed [DATA_W-1:0]    bb_q [N_BEAM-1:0],
     input  logic                        bb_valid [N_BEAM-1:0],
 
-    // APB é…ç½®æ¥å£ (ä¸åŸ tx_top å®Œå…¨ç›¸åŒ)
+    // APB ÅäÖÃ½Ó¿Ú (ÓëÔ­ tx_top ÍêÈ«ÏàÍ¬)
     input  logic                        apb_psel,
     input  logic                        apb_penable,
     input  logic                        apb_pwrite,
@@ -34,13 +34,13 @@ module tx_top_apb (
     output logic [31:0]                 apb_prdata,
     output logic                        apb_pslverr,
 
-    // 8 è·¯ RF-DAC è¾“å‡º
+    // 8 Â· RF-DAC Êä³ö
     output logic signed [DAC_W-1:0]     dac_i_8p [N_ELEM-1:0][INTERP-1:0],
     output logic signed [DAC_W-1:0]     dac_q_8p [N_ELEM-1:0][INTERP-1:0],
     output logic                        dac_valid [N_ELEM-1:0]
 );
 
-    // ---------- åŒæ­¥å¤ä½ ----------
+    // ---------- Í¬²½¸´Î» ----------
     logic rst;
     reset_sync u_rst_sync (
         .clk         (clk_300m),
@@ -48,7 +48,7 @@ module tx_top_apb (
         .rst         (rst)
     );
 
-    // ---------- cfg_bus è¾“å‡º (æ•°ç»„å½¢å¼) ----------
+    // ---------- cfg_bus Êä³ö (Êı×éĞÎÊ½) ----------
     logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val   [N_BEAM-1:0][N_ELEM-1:0];
     logic signed [COEF_W-1:0]       cfg_weight_re_arr [N_BEAM-1:0][N_ELEM-1:0];
     logic signed [COEF_W-1:0]       cfg_weight_im_arr [N_BEAM-1:0][N_ELEM-1:0];
@@ -85,8 +85,8 @@ module tx_top_apb (
         .cfg_weight_sel_ch (cfg_weight_sel_ch)
     );
 
-    // ---------- æƒé‡æ•°ç»„ â†’ æ ‡é‡æ¡¥æ¥ ----------
-    // cfg_bus ä¸€æ¬¡å†™ä¸€ä¸ªæ³¢æŸä¸€ä¸ªé€šé“, weight_load[b] é«˜æ—¶é€‰ä¸­æ³¢æŸ b çš„ sel_ch é€šé“å€¼
+    // ---------- È¨ÖØÊı×é ¡ú ±êÁ¿ÇÅ½Ó ----------
+    // cfg_bus Ò»´ÎĞ´Ò»¸ö²¨ÊøÒ»¸öÍ¨µÀ, weight_load[b] ¸ßÊ±Ñ¡ÖĞ²¨Êø b µÄ sel_ch Í¨µÀÖµ
     logic [$clog2(N_BEAM)-1:0] weight_load_beam;
     always_comb begin
         weight_load_beam = '0;
@@ -98,7 +98,7 @@ module tx_top_apb (
     assign cfg_weight_re_scalar = cfg_weight_re_arr[weight_load_beam][cfg_weight_sel_ch];
     assign cfg_weight_im_scalar = cfg_weight_im_arr[weight_load_beam][cfg_weight_sel_ch];
 
-    // ---------- tx_top (cfg_* ç«¯å£ç‰ˆ) ----------
+    // ---------- tx_top (cfg_* ¶Ë¿Ú°æ) ----------
     tx_top u_tx (
         .clk_300m         (clk_300m),
         .rst              (rst),

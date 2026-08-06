@@ -1,15 +1,15 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// tx_top.sv  --  æ•°æ®è·¯å¾„é¡¶å±‚: 4 æ³¢æŸ Ã— 8 é˜µå…ƒ â†’ 8 è·¯å¤æ•° RF-DAC
+// tx_top.sv  --  Êı¾İÂ·¾¶¶¥²ã: 4 ²¨Êø ¡Á 8 ÕóÔª ¡ú 8 Â·¸´Êı RF-DAC
 // =============================================================================
-// é…ç½®ç”±å¤–éƒ¨å¹¶è¡Œç«¯å£ cfg_* é©±åŠ¨ (decode_cmd_tx_bf æˆ– cfg_bus åŒ…è£…å‡å¯)ã€‚
-// æ•°æ®æµ:
-//   BB1..4 (300MHz å¤ IQ) â†’ 4Ã— beam_duc (DBF+å†…æ’+ä¸Šå˜é¢‘) â†’ 4Ã—8è·¯å¤æ•° @2.4GHzç­‰æ•ˆ
-//     â†’ 8Ã— sum_4to1 (æ¯é˜µå…ƒæ±‚ 4 æ³¢æŸä¹‹å’Œ) â†’ 8 è·¯å¤æ•° I/Q (8å¹¶è¡Œ @300MHz)
-//     â†’ æˆªä½ 16bit â†’ 8 è·¯ RF-DAC
+// ÅäÖÃÓÉÍâ²¿²¢ĞĞ¶Ë¿Ú cfg_* Çı¶¯ (decode_cmd_tx_bf »ò cfg_bus °ü×°¾ù¿É)¡£
+// Êı¾İÁ÷:
+//   BB1..4 (300MHz ¸´ IQ) ¡ú 4¡Á beam_duc (DBF+ÄÚ²å+ÉÏ±äÆµ) ¡ú 4¡Á8Â·¸´Êı @2.4GHzµÈĞ§
+//     ¡ú 8¡Á sum_4to1 (Ã¿ÕóÔªÇó 4 ²¨ÊøÖ®ºÍ) ¡ú 8 Â·¸´Êı I/Q (8²¢ĞĞ @300MHz)
+//     ¡ú ½ØÎ» 16bit ¡ú 8 Â· RF-DAC
 //
-// å†…éƒ¨: 4 beam_duc + 8 sum_4to1 + DAC æˆªä½ (å¤ä½ä¸ºåŒæ­¥é«˜æœ‰æ•ˆ rst, ç”±é¡¶å±‚åŒæ­¥åæä¾›)
+// ÄÚ²¿: 4 beam_duc + 8 sum_4to1 + DAC ½ØÎ» (¸´Î»ÎªÍ¬²½¸ßÓĞĞ§ rst, ÓÉ¶¥²ãÍ¬²½ºóÌá¹©)
 // =============================================================================
 
 `ifndef TX_TOP_SV
@@ -17,41 +17,41 @@
 import tx_bf_pkg::*;
 
 module tx_top (
-    input  logic                        clk_300m,      // ä¸»æ—¶é’Ÿ 300MHz
-    input  logic                        rst,           // åŒæ­¥é«˜æœ‰æ•ˆå¤ä½ (é¡¶å±‚å·²åŒæ­¥, æœ¬æ¨¡å—ä¸å†å†…éƒ¨åŒæ­¥)
+    input  logic                        clk_300m,      // Ö÷Ê±ÖÓ 300MHz
+    input  logic                        rst,           // Í¬²½¸ßÓĞĞ§¸´Î» (¶¥²ãÒÑÍ¬²½, ±¾Ä£¿é²»ÔÙÄÚ²¿Í¬²½)
 
-    // 4 è·¯åŸºå¸¦å¤ IQ è¾“å…¥ (300MHz)
+    // 4 Â·»ù´ø¸´ IQ ÊäÈë (300MHz)
     input  logic signed [DATA_W-1:0]    bb_i [N_BEAM-1:0],
     input  logic signed [DATA_W-1:0]    bb_q [N_BEAM-1:0],
     input  logic                        bb_valid [N_BEAM-1:0],
 
-    // ---------- å¹¶è¡Œé…ç½®ç«¯å£ (ç”± decode_cmd_tx_bf æˆ– cfg_bus é©±åŠ¨) ----------
+    // ---------- ²¢ĞĞÅäÖÃ¶Ë¿Ú (ÓÉ decode_cmd_tx_bf »ò cfg_bus Çı¶¯) ----------
     input  logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val   [N_BEAM-1:0][N_ELEM-1:0],
     input  logic [DDS_PHASE_W-1:0]         cfg_phase_inc   [N_BEAM-1:0],
     input  logic [DDS_PHASE_W-1:0]         cfg_phase_offset[N_BEAM-1:0],
-    // FIR ç³»æ•°ä¸²è¡ŒåŠ è½½ (å…±äº« sel_ch/addr/data, æ¯æ³¢æŸç‹¬ç«‹ load è„‰å†²)
+    // FIR ÏµÊı´®ĞĞ¼ÓÔØ (¹²Ïí sel_ch/addr/data, Ã¿²¨Êø¶ÀÁ¢ load Âö³å)
     input  logic                           cfg_fir_load    [N_BEAM-1:0],
     input  logic [$clog2(N_ELEM)-1:0]      cfg_fir_sel_ch,
     input  logic [$clog2(TAPS)-1:0]        cfg_fir_coef_addr,
     input  logic signed [COEF_W-1:0]       cfg_fir_coef_data,
-    // å¤æ•°æƒé‡ä¸²è¡ŒåŠ è½½ (å…±äº« sel_ch/re/im, æ¯æ³¢æŸç‹¬ç«‹ load è„‰å†²)
+    // ¸´ÊıÈ¨ÖØ´®ĞĞ¼ÓÔØ (¹²Ïí sel_ch/re/im, Ã¿²¨Êø¶ÀÁ¢ load Âö³å)
     input  logic                           cfg_weight_load [N_BEAM-1:0],
     input  logic [$clog2(N_ELEM)-1:0]      cfg_weight_sel_ch,
     input  logic signed [COEF_W-1:0]       cfg_weight_re,
     input  logic signed [COEF_W-1:0]       cfg_weight_im,
 
-    // 8 è·¯ RF-DAC è¾“å‡º (å¤æ•° I/Q, 8 å¹¶è¡Œ @300MHz = 2.4Gs/s)
+    // 8 Â· RF-DAC Êä³ö (¸´Êı I/Q, 8 ²¢ĞĞ @300MHz = 2.4Gs/s)
     output logic signed [DAC_W-1:0]     dac_i_8p [N_ELEM-1:0][INTERP-1:0],
     output logic signed [DAC_W-1:0]     dac_q_8p [N_ELEM-1:0][INTERP-1:0],
     output logic                        dac_valid [N_ELEM-1:0]
 );
 
-    // ---------- 4 ä¸ªæ³¢æŸå¤„ç†å•å…ƒ ----------
+    // ---------- 4 ¸ö²¨Êø´¦Àíµ¥Ôª ----------
     logic signed [MIXER_OUT_W-1:0] beam_i [N_BEAM-1:0][N_ELEM-1:0][INTERP-1:0];
     logic signed [MIXER_OUT_W-1:0] beam_q [N_BEAM-1:0][N_ELEM-1:0][INTERP-1:0];
     logic                           beam_valid [N_BEAM-1:0];
 
-    // æ±‚å’Œ valid: 4 æ³¢æŸ valid ä¸
+    // ÇóºÍ valid: 4 ²¨Êø valid Óë
     logic beam_valid_all;
     always_comb begin
         beam_valid_all = 1'b1;
@@ -76,7 +76,7 @@ module tx_top (
                 .fir_coef_addr  (cfg_fir_coef_addr),
                 .fir_coef_data  (cfg_fir_coef_data),
                 .fir_sel_ch     (cfg_fir_sel_ch),
-                // æƒé‡: æ ‡é‡ç›´è¿ (cfg_weight_re/im + cfg_weight_sel_ch ç”±å¤–éƒ¨é©±åŠ¨)
+                // È¨ÖØ: ±êÁ¿Ö±Á¬ (cfg_weight_re/im + cfg_weight_sel_ch ÓÉÍâ²¿Çı¶¯)
                 .weight_load    (cfg_weight_load[b]),
                 .weight_sel_ch  (cfg_weight_sel_ch),
                 .weight_re      (cfg_weight_re),
@@ -90,7 +90,7 @@ module tx_top (
         end
     endgenerate
 
-    // ---------- 8 ä¸ªé˜µå…ƒæ±‚å’Œ (4 æ³¢æŸ â†’ 1 è·¯) ----------
+    // ---------- 8 ¸öÕóÔªÇóºÍ (4 ²¨Êø ¡ú 1 Â·) ----------
     logic signed [SUM_OUT_W-1:0] sum_i [N_ELEM-1:0][INTERP-1:0];
     logic signed [SUM_OUT_W-1:0] sum_q [N_ELEM-1:0][INTERP-1:0];
     logic                        sum_valid [N_ELEM-1:0];
@@ -126,7 +126,7 @@ module tx_top (
         end
     endgenerate
 
-    // ---------- DAC è¾“å‡ºæˆªä½ (20bit â†’ 16bit, ä¿ç¬¦å·æˆªé«˜ä½) ----------
+    // ---------- DAC Êä³ö½ØÎ» (20bit ¡ú 16bit, ±£·ûºÅ½Ø¸ßÎ») ----------
     genvar d;
     generate
         for (d = 0; d < N_ELEM; d++) begin : g_dac

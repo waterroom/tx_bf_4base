@@ -1,23 +1,23 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// cfg_bus.sv  --  APB é…ç½®æ€»çº¿åˆ†å‘å™¨
+// cfg_bus.sv  --  APB ÅäÖÃ×ÜÏß·Ö·¢Æ÷
 // =============================================================================
-// APB ä»æœº, è§£ç åœ°å€å¹¶åˆ†å‘é…ç½®ç»™ 4 ä¸ª beam_duc:
-//   - æ¯æ³¢æŸ: delay_val[8], weight_re[8], weight_im[8], phase_inc, phase_offset
-//   - FIR ç³»æ•°: ä¸²è¡ŒåŠ è½½ (APB å†™ fir_sel_ch/fir_coef_addr/fir_coef_data + load è„‰å†²)
+// APB ´Ó»ú, ½âÂëµØÖ·²¢·Ö·¢ÅäÖÃ¸ø 4 ¸ö beam_duc:
+//   - Ã¿²¨Êø: delay_val[8], weight_re[8], weight_im[8], phase_inc, phase_offset
+//   - FIR ÏµÊı: ´®ĞĞ¼ÓÔØ (APB Ğ´ fir_sel_ch/fir_coef_addr/fir_coef_data + load Âö³å)
 //
-// åœ°å€æ˜ å°„ (32bit APB, å­—åœ°å€):
-//   åŸºå€ + beam*0x40:
-//     0x00-0x07: delay_val[0..7]    (16bit, ä½16ä½æœ‰æ•ˆ)
+// µØÖ·Ó³Éä (32bit APB, ×ÖµØÖ·):
+//   »ùÖ· + beam*0x40:
+//     0x00-0x07: delay_val[0..7]    (16bit, µÍ16Î»ÓĞĞ§)
 //     0x08-0x0F: weight_re[0..7]    (16bit)
 //     0x10-0x17: weight_im[0..7]    (16bit)
 //     0x18: phase_inc               (32bit)
 //     0x19: phase_offset            (32bit)
-//   0x20: FIR ç³»æ•°åŠ è½½å£ (å†™: {fir_sel_ch[7:4], fir_coef_addr[3:0], fir_coef_data[15:0]})
-//         beam ç”±åœ°å€åŸºå€å†³å®š, fir_sel_ch ä¸ºæ³¢æŸå†…é€šé“å·(0..7)
+//   0x20: FIR ÏµÊı¼ÓÔØ¿Ú (Ğ´: {fir_sel_ch[7:4], fir_coef_addr[3:0], fir_coef_data[15:0]})
+//         beam ÓÉµØÖ·»ùÖ·¾ö¶¨, fir_sel_ch Îª²¨ÊøÄÚÍ¨µÀºÅ(0..7)
 //
-// æ³¨: ç®€åŒ–ç‰ˆ, å®é™…é¡¹ç›®å¯æ‰©å±•ä¸º AXI-Lite + DMA æ‰¹é‡åŠ è½½
+// ×¢: ¼ò»¯°æ, Êµ¼ÊÏîÄ¿¿ÉÀ©Õ¹Îª AXI-Lite + DMA ÅúÁ¿¼ÓÔØ
 // =============================================================================
 
 `ifndef CFG_BUS_SV
@@ -31,50 +31,50 @@ module cfg_bus #(
 )(
     input  logic                        clk,
     input  logic                        rst,
-    // APB ä»æœºæ¥å£
+    // APB ´Ó»ú½Ó¿Ú
     input  logic                        apb_psel,
     input  logic                        apb_penable,
     input  logic                        apb_pwrite,
-    input  logic [15:0]                 apb_paddr,   // å­—åœ°å€
+    input  logic [15:0]                 apb_paddr,   // ×ÖµØÖ·
     input  logic [31:0]                 apb_pwdata,
     output logic                        apb_pready,
     output logic [31:0]                 apb_prdata,
     output logic                        apb_pslverr,
-    // åˆ†å‘ç»™ 4 ä¸ª beam_duc çš„é…ç½®
+    // ·Ö·¢¸ø 4 ¸ö beam_duc µÄÅäÖÃ
     output logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val [N_BEAM_P-1:0][N_CH_P-1:0],
     output logic signed [COEF_W-1:0]   cfg_weight_re [N_BEAM_P-1:0][N_CH_P-1:0],
     output logic signed [COEF_W-1:0]   cfg_weight_im [N_BEAM_P-1:0][N_CH_P-1:0],
     output logic [DDS_PHASE_W-1:0]     cfg_phase_inc [N_BEAM_P-1:0],
     output logic [DDS_PHASE_W-1:0]     cfg_phase_offset [N_BEAM_P-1:0],
-    // FIR ç³»æ•°ä¸²è¡ŒåŠ è½½ (åˆ†å‘åˆ°å¯¹åº”æ³¢æŸ)
+    // FIR ÏµÊı´®ĞĞ¼ÓÔØ (·Ö·¢µ½¶ÔÓ¦²¨Êø)
     output logic                        cfg_fir_load [N_BEAM_P-1:0],
     output logic [$clog2(N_CH_P)-1:0]  cfg_fir_sel_ch,
     output logic [$clog2(TAPS)-1:0]   cfg_fir_coef_addr,
     output logic signed [COEF_W-1:0]   cfg_fir_coef_data,
-    // å¤æ•°æƒé‡ä¸²è¡ŒåŠ è½½ (å†™ weight_re/im å¯„å­˜å™¨æ—¶äº§ç”Ÿ load è„‰å†², é…åˆ
-    // cfg_weight_re/im æ•°ç»„é€‰ä¸­é€šé“çš„å€¼, ç”±ä¸Šå±‚ä¸²è¡Œå†™å…¥ tx_bf_core)
+    // ¸´ÊıÈ¨ÖØ´®ĞĞ¼ÓÔØ (Ğ´ weight_re/im ¼Ä´æÆ÷Ê±²úÉú load Âö³å, ÅäºÏ
+    // cfg_weight_re/im Êı×éÑ¡ÖĞÍ¨µÀµÄÖµ, ÓÉÉÏ²ã´®ĞĞĞ´Èë tx_bf_core)
     output logic                        cfg_weight_load [N_BEAM_P-1:0],
     output logic [$clog2(N_CH_P)-1:0]  cfg_weight_sel_ch
 );
 
-    // ---------- å¯„å­˜å™¨é˜µåˆ— ----------
+    // ---------- ¼Ä´æÆ÷ÕóÁĞ ----------
     logic [15:0] delay_reg   [N_BEAM_P-1:0][N_CH_P-1:0];
     logic [15:0] wre_reg     [N_BEAM_P-1:0][N_CH_P-1:0];
     logic [15:0] wim_reg     [N_BEAM_P-1:0][N_CH_P-1:0];
     logic [31:0] pinc_reg    [N_BEAM_P-1:0];
     logic [31:0] poff_reg    [N_BEAM_P-1:0];
 
-    // APB è§£ç 
-    logic [3:0]  beam_idx;       // æ³¢æŸç´¢å¼• (åœ°å€é«˜ä½)
-    logic [5:0]  reg_idx;        // æ³¢æŸå†…å¯„å­˜å™¨ç´¢å¼• (åœ°å€ä½ 6 ä½)
-    logic        is_fir_port;    // FIR ç³»æ•°åŠ è½½å£
+    // APB ½âÂë
+    logic [3:0]  beam_idx;       // ²¨ÊøË÷Òı (µØÖ·¸ßÎ»)
+    logic [5:0]  reg_idx;        // ²¨ÊøÄÚ¼Ä´æÆ÷Ë÷Òı (µØÖ·µÍ 6 Î»)
+    logic        is_fir_port;    // FIR ÏµÊı¼ÓÔØ¿Ú
     logic        apb_write;
-    assign beam_idx  = apb_paddr[10:6];  // æ³¢æŸ: åœ°å€ [10:6], æ¯ beam 0x40 å­—
+    assign beam_idx  = apb_paddr[10:6];  // ²¨Êø: µØÖ· [10:6], Ã¿ beam 0x40 ×Ö
     assign reg_idx   = apb_paddr[5:0];
     assign is_fir_port = (reg_idx == 6'h20);
     assign apb_write  = apb_psel & apb_penable & apb_pwrite;
 
-    // ---------- å†™é€»è¾‘ ----------
+    // ---------- Ğ´Âß¼­ ----------
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
@@ -100,18 +100,18 @@ module cfg_bus #(
         end
     end
 
-    // ---------- FIR ç³»æ•°åŠ è½½å£ ----------
-    // å†™ 0x20 æ—¶: pwdata = {fir_sel_ch[7:4](å¿½ç•¥), fir_coef_addr[3:0], fir_coef_data[15:0]}
-    //   å®é™…: fir_sel_ch = pwdata[19:16], fir_coef_addr = pwdata[15:12], fir_coef_data = pwdata[11:0]? 
-    //   ç®€åŒ–: fir_sel_ch=pwdata[23:16], fir_coef_addr=pwdata[15:12], fir_coef_data=pwdata[11:0]ä¸å¯¹
-    //   é‡æ–°å®šä¹‰: pwdata = {16'b0, fir_sel_ch[3:0], fir_coef_addr[3:0], fir_coef_data[15:0]}
-    //   å³ fir_sel_ch = pwdata[19:16], addr = pwdata[15:12]... ä¸å¯¹, æ•°æ®16bit
-    //   å®šä¹‰: pwdata[31:16]=fir_coef_data, pwdata[15:12]=fir_coef_addr, pwdata[11:8]=fir_sel_ch
+    // ---------- FIR ÏµÊı¼ÓÔØ¿Ú ----------
+    // Ğ´ 0x20 Ê±: pwdata = {fir_sel_ch[7:4](ºöÂÔ), fir_coef_addr[3:0], fir_coef_data[15:0]}
+    //   Êµ¼Ê: fir_sel_ch = pwdata[19:16], fir_coef_addr = pwdata[15:12], fir_coef_data = pwdata[11:0]? 
+    //   ¼ò»¯: fir_sel_ch=pwdata[23:16], fir_coef_addr=pwdata[15:12], fir_coef_data=pwdata[11:0]²»¶Ô
+    //   ÖØĞÂ¶¨Òå: pwdata = {16'b0, fir_sel_ch[3:0], fir_coef_addr[3:0], fir_coef_data[15:0]}
+    //   ¼´ fir_sel_ch = pwdata[19:16], addr = pwdata[15:12]... ²»¶Ô, Êı¾İ16bit
+    //   ¶¨Òå: pwdata[31:16]=fir_coef_data, pwdata[15:12]=fir_coef_addr, pwdata[11:8]=fir_sel_ch
     assign cfg_fir_sel_ch    = apb_pwdata[11:8];
     assign cfg_fir_coef_addr = apb_pwdata[15:12];
     assign cfg_fir_coef_data = apb_pwdata[31:16];
 
-    // FIR load è„‰å†²: å†™ 0x20 æ—¶å¯¹åº”æ³¢æŸäº§ç”Ÿ 1 æ‹ load
+    // FIR load Âö³å: Ğ´ 0x20 Ê±¶ÔÓ¦²¨Êø²úÉú 1 ÅÄ load
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int b = 0; b < N_BEAM_P; b++) cfg_fir_load[b] <= 1'b0;
@@ -121,10 +121,10 @@ module cfg_bus #(
         end
     end
 
-    // ---------- å¤æ•°æƒé‡åŠ è½½å£ ----------
-    // å†™ weight_re[c] (0x08+c) æˆ– weight_im[c] (0x10+c) æ—¶, å¯¹åº”æ³¢æŸäº§ç”Ÿ 1 æ‹ load è„‰å†²ã€‚
-    // å¯„å­˜å™¨å·²åŒæ­¥æ›´æ–° (åŒä¸€æ‹å†™, ä¸‹ä¸€æ‹ç»„åˆè¾“å‡ºæ–°å€¼), load è„‰å†²ä¹Ÿåœ¨å†™åä¸€æ‹äº§ç”Ÿ,
-    // ä¸Šå±‚åœ¨ load æœ‰æ•ˆæ—¶ç”¨ cfg_weight_re/im[beam][sel_ch] é€‰ä¸­é€šé“çš„å€¼åŠ è½½ tx_bf_coreã€‚
+    // ---------- ¸´ÊıÈ¨ÖØ¼ÓÔØ¿Ú ----------
+    // Ğ´ weight_re[c] (0x08+c) »ò weight_im[c] (0x10+c) Ê±, ¶ÔÓ¦²¨Êø²úÉú 1 ÅÄ load Âö³å¡£
+    // ¼Ä´æÆ÷ÒÑÍ¬²½¸üĞÂ (Í¬Ò»ÅÄĞ´, ÏÂÒ»ÅÄ×éºÏÊä³öĞÂÖµ), load Âö³åÒ²ÔÚĞ´ºóÒ»ÅÄ²úÉú,
+    // ÉÏ²ãÔÚ load ÓĞĞ§Ê±ÓÃ cfg_weight_re/im[beam][sel_ch] Ñ¡ÖĞÍ¨µÀµÄÖµ¼ÓÔØ tx_bf_core¡£
     logic is_weight_port;
     assign is_weight_port = (reg_idx >= 6'h08 && reg_idx < 6'h08 + N_CH_P) ||
                             (reg_idx >= 6'h10 && reg_idx < 6'h10 + N_CH_P);
@@ -137,10 +137,10 @@ module cfg_bus #(
                 cfg_weight_load[b] <= apb_write & is_weight_port & (beam_idx == b[N_BEAM_P-1:0]);
         end
     end
-    // è¢«å†™é€šé“å·: ç”±åœ°å€ä½ 3 ä½ç»™å‡º (0x08+c æˆ– 0x10+c)
+    // ±»Ğ´Í¨µÀºÅ: ÓÉµØÖ·µÍ 3 Î»¸ø³ö (0x08+c »ò 0x10+c)
     assign cfg_weight_sel_ch = reg_idx[2:0];
 
-    // ---------- è¾“å‡ºåˆ†å‘ ----------
+    // ---------- Êä³ö·Ö·¢ ----------
     always_comb begin
         for (int b = 0; b < N_BEAM_P; b++) begin
             for (int c = 0; c < N_CH_P; c++) begin
@@ -153,7 +153,7 @@ module cfg_bus #(
         end
     end
 
-    // ---------- APB è¯» + ready ----------
+    // ---------- APB ¶Á + ready ----------
     always_ff @(posedge clk) begin
         if (rst) begin
             apb_pready  <= 1'b0;
@@ -162,7 +162,7 @@ module cfg_bus #(
         end else begin
             apb_pready  <= apb_psel & apb_penable;   // 1 wait cycle
             apb_pslverr <= 1'b0;
-            // è¯»æ•°æ® (ç®€åŒ–: ä»…è¯» delay_reg[0][0])
+            // ¶ÁÊı¾İ (¼ò»¯: ½ö¶Á delay_reg[0][0])
             if (apb_psel & apb_penable & ~apb_pwrite & beam_idx < N_BEAM_P) begin
                 if (reg_idx < N_CH_P)
                     apb_prdata <= {16'b0, delay_reg[beam_idx][reg_idx]};

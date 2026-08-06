@@ -1,10 +1,10 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// tb_decode_cmd_tx_bf.sv  --  decode_cmd_tx_bf å•å…ƒæµ‹è¯•
+// tb_decode_cmd_tx_bf.sv  --  decode_cmd_tx_bf µ¥Ôª²âÊÔ
 // =============================================================================
-// éªŒè¯: 64b æŠ¥æ–‡ FSM + CDC + å¯„å­˜å™¨è§£æ (FIR/weight/delay/phase)
-// ä¸ä¾èµ– DSP æ•°æ®è·¯å¾„ (å¿«)
+// ÑéÖ¤: 64b ±¨ÎÄ FSM + CDC + ¼Ä´æÆ÷½âÎö (FIR/weight/delay/phase)
+// ²»ÒÀÀµ DSP Êı¾İÂ·¾¶ (¿ì)
 // =============================================================================
 
 import tx_bf_pkg::*;
@@ -16,7 +16,7 @@ module tb_decode_cmd_tx_bf;
     logic [63:0] cmd_data = 0;
     logic        cmd_data_valid = 0;
 
-    // DUT è¾“å‡º
+    // DUT Êä³ö
     logic [$clog2(MAX_DELAY+1)-1:0] delay_val    [N_BEAM-1:0][N_ELEM-1:0];
     logic [DDS_PHASE_W-1:0]         phase_inc    [N_BEAM-1:0];
     logic [DDS_PHASE_W-1:0]         phase_offset [N_BEAM-1:0];
@@ -30,7 +30,7 @@ module tb_decode_cmd_tx_bf;
     logic signed [COEF_W-1:0]       weight_im;
     logic                           cfg_apply_pulse;
 
-    // æ—¶é’Ÿ
+    // Ê±ÖÓ
     localparam real DA_CLK_PERIOD  = 3.333;  // 300MHz
     localparam real CMD_CLK_PERIOD = 10.0;   // 100MHz
     always #(DA_CLK_PERIOD/2)  da_clk  = ~da_clk;
@@ -49,13 +49,13 @@ module tb_decode_cmd_tx_bf;
         .cfg_apply_pulse(cfg_apply_pulse)
     );
 
-    // ---------- load è„‰å†²é‡‡æ · (1 æ‹è„‰å†²éœ€æ•è·, ç”µå¹³æ£€æŸ¥ä¼šé”™è¿‡) ----------
+    // ---------- load Âö³å²ÉÑù (1 ÅÄÂö³åĞè²¶»ñ, µçÆ½¼ì²é»á´í¹ı) ----------
     logic fir_load_seen    [N_BEAM-1:0];
     logic weight_load_seen [N_BEAM-1:0];
     logic [$clog2(N_ELEM)-1:0] fir_sel_ch_cap, weight_sel_ch_cap;
     logic [$clog2(TAPS)-1:0]   fir_addr_cap;
     logic signed [COEF_W-1:0]  fir_data_cap, weight_re_cap, weight_im_cap;
-    // unpacked array å½’çº¦éœ€ç”¨å¾ªç¯ (| ä¸é€‚ç”¨)
+    // unpacked array ¹éÔ¼ĞèÓÃÑ­»· (| ²»ÊÊÓÃ)
     logic any_fir_load, any_weight_load;
     always_comb begin
         any_fir_load = 1'b0;
@@ -80,11 +80,11 @@ module tb_decode_cmd_tx_bf;
         end
     end
 
-    // ---------- æŠ¥æ–‡ç”Ÿæˆå™¨ ----------
+    // ---------- ±¨ÎÄÉú³ÉÆ÷ ----------
     task automatic send_packet(input [31:0] function_id, input logic [63:0] content_q[$]);
         logic [63:0] pkt[$];
         int i;
-        pkt.push_back({32'h7E8118E7, 32'h0000_0040});       // å¸§å¤´ + Len
+        pkt.push_back({32'h7E8118E7, 32'h0000_0040});       // Ö¡Í· + Len
         pkt.push_back({16'h0001, 16'h0001, function_id});   // Dest/Device/Func
         pkt.push_back(64'h0);                                // Time
         pkt.push_back({32'h0000_0001, 32'h0000_0001});      // Serial/Amount
@@ -92,8 +92,8 @@ module tb_decode_cmd_tx_bf;
         pkt.push_back({16'h0001, 16'h0000, 32'h0});         // Version/RetAddr
         for (i = 0; i < content_q.size(); i++)
             pkt.push_back(content_q[i]);
-        pkt.push_back({32'h0000_0000, 32'h8F9009F8});       // Checksum + å¸§å°¾
-        // åœ¨ cmd_clk åŸŸé€æ‹é©±åŠ¨
+        pkt.push_back({32'h0000_0000, 32'h8F9009F8});       // Checksum + Ö¡Î²
+        // ÔÚ cmd_clk ÓòÖğÅÄÇı¶¯
         for (i = 0; i < pkt.size(); i++) begin
             @(posedge cmd_clk);
             cmd_data       <= pkt[i];
@@ -103,26 +103,26 @@ module tb_decode_cmd_tx_bf;
         cmd_data_valid <= 0;
     endtask
 
-    // ---------- æµ‹è¯•ç”¨ä¾‹ ----------
+    // ---------- ²âÊÔÓÃÀı ----------
     logic [63:0] content_q[$];
     int errors = 0;
 
     initial begin
-        // å¤ä½
+        // ¸´Î»
         rst_da_clk = 1; rst_cmd_clk = 1;
         repeat(10) @(posedge da_clk);
         rst_da_clk = 0; rst_cmd_clk = 0;
-        // ç­‰å¾… xpm_fifo_async å¤ä½é‡Šæ”¾ (wr_rst_busy/rd_rst_busy éœ€æ•°ä¸ªæ—¶é’Ÿ),
-        // å¦åˆ™ç¬¬ä¸€ä¸ªæŠ¥æ–‡çš„å‰å‡ å­—ä¼šè¢« FIFO ä¸¢å¼ƒ (å¸§å¤´ä¸¢å¤± â†’ FSM ä¸è¯†åˆ«)
+        // µÈ´ı xpm_fifo_async ¸´Î»ÊÍ·Å (wr_rst_busy/rd_rst_busy ĞèÊı¸öÊ±ÖÓ),
+        // ·ñÔòµÚÒ»¸ö±¨ÎÄµÄÇ°¼¸×Ö»á±» FIFO ¶ªÆú (Ö¡Í·¶ªÊ§ ¡ú FSM ²»Ê¶±ğ)
         repeat(500) @(posedge da_clk);
 
-        // ===== ç”¨ä¾‹ 1: FIR ç³»æ•°åŠ è½½ (beam0/ch0/tap7=0x7FFF) =====
-        $display("=== ç”¨ä¾‹ 1: FIR ç³»æ•°åŠ è½½ ===");
+        // ===== ÓÃÀı 1: FIR ÏµÊı¼ÓÔØ (beam0/ch0/tap7=0x7FFF) =====
+        $display("=== ÓÃÀı 1: FIR ÏµÊı¼ÓÔØ ===");
         content_q = {};
-        // data[31:16]=coef=0x7FFF, data[7:4]=tap=7 â†’ data = 0x7FFF_0070
+        // data[31:16]=coef=0x7FFF, data[7:4]=tap=7 ¡ú data = 0x7FFF_0070
         content_q.push_back({32'h6702_0000, 32'h7FFF_0070}); // addr=0x6702+0, tap=7
         send_packet(32'h0A0C_000B, content_q);
-        // ç­‰å¾… CDC + æµæ°´ + è„‰å†²é‡‡æ ·
+        // µÈ´ı CDC + Á÷Ë® + Âö³å²ÉÑù
         repeat(30) @(posedge da_clk);
         if (!fir_load_seen[0] || fir_sel_ch_cap !== 0 || fir_addr_cap !== 7 || fir_data_cap !== 16'h7FFF) begin
             $display("  FAIL: load_seen[0]=%b sel_ch=%0d addr=%0d data=%h", fir_load_seen[0], fir_sel_ch_cap, fir_addr_cap, fir_data_cap);
@@ -130,8 +130,8 @@ module tb_decode_cmd_tx_bf;
         end else $display("  PASS");
         repeat(5) @(posedge da_clk);
 
-        // ===== ç”¨ä¾‹ 2: æƒé‡åŠ è½½ (beam2/ch5, re=0x4000, im=0x8000) =====
-        $display("=== ç”¨ä¾‹ 2: æƒé‡åŠ è½½ ===");
+        // ===== ÓÃÀı 2: È¨ÖØ¼ÓÔØ (beam2/ch5, re=0x4000, im=0x8000) =====
+        $display("=== ÓÃÀı 2: È¨ÖØ¼ÓÔØ ===");
         content_q = {};
         content_q.push_back({32'h6703_0015, 32'h8000_4000}); // idx=2*8+5=21=0x15, data={im=0x8000, re=0x4000}
         send_packet(32'h0A0C_000B, content_q);
@@ -142,41 +142,41 @@ module tb_decode_cmd_tx_bf;
         end else $display("  PASS");
         repeat(5) @(posedge da_clk);
 
-        // ===== ç”¨ä¾‹ 3: delay + phase apply æäº¤ =====
-        $display("=== ç”¨ä¾‹ 3: delay + phase apply æäº¤ ===");
+        // ===== ÓÃÀı 3: delay + phase apply Ìá½» =====
+        $display("=== ÓÃÀı 3: delay + phase apply Ìá½» ===");
         content_q = {};
         content_q.push_back({32'h6701_0000, 32'h0000_000A}); // delay[0][0]=10
-        content_q.push_back({32'h6701_0017, 32'h0000_0014}); // delay[3][7]=20 (idx=3*8+7=31=0x1F? ä¸å¯¹, 31=0x1F)
+        content_q.push_back({32'h6701_0017, 32'h0000_0014}); // delay[3][7]=20 (idx=3*8+7=31=0x1F? ²»¶Ô, 31=0x1F)
         content_q.push_back({32'h6705_0000, 32'h1234_5678}); // phase_inc[0]
         content_q.push_back({32'h6706_0001, 32'hABCD_EF01}); // phase_offset[1]
-        send_packet(32'h0A0C_000B, content_q);  // apply æŠ¥æ–‡
+        send_packet(32'h0A0C_000B, content_q);  // apply ±¨ÎÄ
         repeat(40) @(posedge da_clk);
         if (delay_val[0][0] !== 10 || phase_inc[0] !== 32'h12345678 || phase_offset[1] !== 32'hABCDEF01) begin
             $display("  FAIL: delay[0][0]=%0d phase_inc[0]=%h phase_offset[1]=%h", delay_val[0][0], phase_inc[0], phase_offset[1]);
             errors++;
         end else $display("  PASS");
 
-        // ===== ç”¨ä¾‹ 4: é apply æŠ¥æ–‡ä¸æäº¤ delay/phase =====
-        $display("=== ç”¨ä¾‹ 4: é apply æŠ¥æ–‡ä¸æäº¤ ===");
+        // ===== ÓÃÀı 4: ·Ç apply ±¨ÎÄ²»Ìá½» delay/phase =====
+        $display("=== ÓÃÀı 4: ·Ç apply ±¨ÎÄ²»Ìá½» ===");
         content_q = {};
-        content_q.push_back({32'h6701_0000, 32'h0000_0063}); // delay[0][0]=99 (åº”ä¸æäº¤)
-        send_packet(32'h0000_0000, content_q);  // é apply
+        content_q.push_back({32'h6701_0000, 32'h0000_0063}); // delay[0][0]=99 (Ó¦²»Ìá½»)
+        send_packet(32'h0000_0000, content_q);  // ·Ç apply
         repeat(40) @(posedge da_clk);
-        if (delay_val[0][0] !== 10) begin  // åº”ä»ä¸º 10 (ç”¨ä¾‹ 3 çš„å€¼)
-            $display("  FAIL: delay[0][0]=%0d (åº”ä¿æŒ 10)", delay_val[0][0]);
+        if (delay_val[0][0] !== 10) begin  // Ó¦ÈÔÎª 10 (ÓÃÀı 3 µÄÖµ)
+            $display("  FAIL: delay[0][0]=%0d (Ó¦±£³Ö 10)", delay_val[0][0]);
             errors++;
         end else $display("  PASS");
 
-        // ===== ç»“è®º =====
+        // ===== ½áÂÛ =====
         if (errors == 0) $display("\n=== ALL PASS ===");
         else $display("\n=== FAIL: %0d errors ===", errors);
         $finish;
     end
 
-    // è¶…æ—¶ä¿æŠ¤
+    // ³¬Ê±±£»¤
     initial begin
         #100000;
-        $display("ERROR: ä»¿çœŸè¶…æ—¶");
+        $display("ERROR: ·ÂÕæ³¬Ê±");
         $finish;
     end
 

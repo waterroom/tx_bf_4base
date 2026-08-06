@@ -1,13 +1,13 @@
 `timescale 1ns/1ps
 
 // =============================================================================
-// tx_bf_pkg.sv  --  å®½å¸¦ TX DBF + DUC å…¬å…±å‚æ•°ä¸ç±»å‹åŒ…
+// tx_bf_pkg.sv  --  ¿í´ø TX DBF + DUC ¹«¹²²ÎÊıÓëÀàĞÍ°ü
 // =============================================================================
-// å…¨å±€å‚æ•°å®šä¹‰, ä¾›æ–°å†™æ¨¡å— (cmult_8p / add_tree_4 / beam_duc / sum_4to1 /
-// cfg_bus / tx_top ç­‰) å¼•ç”¨ã€‚å‚è€ƒä»“åº“å¤ç”¨çš„ 4 ä¸ªæ¨¡å— (int_delay /
-// frac_delay_fir / cmult_3dsp / tx_bf_core) è‡ªå¸¦å‚æ•°, ä¸ä¾èµ–æœ¬åŒ…ã€‚
+// È«¾Ö²ÎÊı¶¨Òå, ¹©ĞÂĞ´Ä£¿é (cmult_8p / add_tree_4 / beam_duc / sum_4to1 /
+// cfg_bus / tx_top µÈ) ÒıÓÃ¡£²Î¿¼²Ö¿â¸´ÓÃµÄ 4 ¸öÄ£¿é (int_delay /
+// frac_delay_fir / cmult_3dsp / tx_bf_core) ×Ô´ø²ÎÊı, ²»ÒÀÀµ±¾°ü¡£
 //
-// æ•°æ®æ€»çº¿çº¦å®š: 8 å¹¶è¡Œé‡‡æ ·ç”¨ unpacked æ•°ç»„ typedef, ä¾¿äºå¯è¯»æ€§ä¸æ³¢å½¢è°ƒè¯•ã€‚
+// Êı¾İ×ÜÏßÔ¼¶¨: 8 ²¢ĞĞ²ÉÑùÓÃ unpacked Êı×é typedef, ±ãÓÚ¿É¶ÁĞÔÓë²¨ĞÎµ÷ÊÔ¡£
 // =============================================================================
 
 `ifndef TX_BF_PKG_SV
@@ -15,43 +15,43 @@
 
 package tx_bf_pkg;
 
-    // ---------- ç³»ç»Ÿè§„æ¨¡ ----------
-    localparam int N_BEAM       = 4;     // æ³¢æŸæ•°
-    localparam int N_ELEM       = 8;     // å• FPGA é˜µå…ƒæ•° (ä¸¤ç‰‡å…± 16)
-    localparam int N_ELEM_TOTAL = 16;    // å…¨ç³»ç»Ÿé˜µå…ƒæ•°
+    // ---------- ÏµÍ³¹æÄ£ ----------
+    localparam int N_BEAM       = 4;     // ²¨ÊøÊı
+    localparam int N_ELEM       = 8;     // µ¥ FPGA ÕóÔªÊı (Á½Æ¬¹² 16)
+    localparam int N_ELEM_TOTAL = 16;    // È«ÏµÍ³ÕóÔªÊı
 
-    // ---------- é‡‡æ ·ç‡ä¸æ—¶é’Ÿ ----------
-    localparam int INTERP       = 8;     // 8 å€å†…æ’ (300MHz â†’ 2.4GHz ç­‰æ•ˆ)
+    // ---------- ²ÉÑùÂÊÓëÊ±ÖÓ ----------
+    localparam int INTERP       = 8;     // 8 ±¶ÄÚ²å (300MHz ¡ú 2.4GHz µÈĞ§)
 
-    // ---------- ä½å®½ ----------
-    localparam int DATA_W       = 16;    // åŸºå¸¦ IQ ä½å®½ (æœ‰ç¬¦å·)
-    localparam int FIR_OUT_W    = 18;    // DBF / å†…æ’ FIR è¾“å‡ºä½å®½
-    localparam int DDS_PHASE_W  = 32;    // DDS ç›¸ä½ç´¯åŠ ä½å®½ (Hz çº§åˆ†è¾¨ç‡: 2.4G/2^32â‰ˆ0.56Hz)
-    localparam int DDS_OUT_W    = 16;    // DDS sin/cos è¾“å‡ºä½å®½
-    localparam int MIXER_OUT_W  = 18;    // å¤æ•°æ··é¢‘è¾“å‡ºä½å®½ (æˆªä½ 18+16â†’18)
-    localparam int SUM_OUT_W    = 20;    // 4 è·¯æ±‚å’Œè¾“å‡ºä½å®½ (18 + log2(4)=2)
-    localparam int DAC_W        = 16;    // DAC æ•°æ®ä½å®½ (PL é€šè·¯; RF-DAC åŸç”Ÿ 14bit æˆªä½)
+    // ---------- Î»¿í ----------
+    localparam int DATA_W       = 16;    // »ù´ø IQ Î»¿í (ÓĞ·ûºÅ)
+    localparam int FIR_OUT_W    = 18;    // DBF / ÄÚ²å FIR Êä³öÎ»¿í
+    localparam int DDS_PHASE_W  = 32;    // DDS ÏàÎ»ÀÛ¼ÓÎ»¿í (Hz ¼¶·Ö±æÂÊ: 2.4G/2^32¡Ö0.56Hz)
+    localparam int DDS_OUT_W    = 16;    // DDS sin/cos Êä³öÎ»¿í
+    localparam int MIXER_OUT_W  = 18;    // ¸´Êı»ìÆµÊä³öÎ»¿í (½ØÎ» 18+16¡ú18)
+    localparam int SUM_OUT_W    = 20;    // 4 Â·ÇóºÍÊä³öÎ»¿í (18 + log2(4)=2)
+    localparam int DAC_W        = 16;    // DAC Êı¾İÎ»¿í (PL Í¨Â·; RF-DAC Ô­Éú 14bit ½ØÎ»)
 
-    // ---------- TTD å‚æ•° (ä¸å‚è€ƒä»“åº“ä¸€è‡´) ----------
-    localparam int TAPS         = 16;    // åˆ†æ•°å»¶æ—¶ FIR æŠ½å¤´æ•°
-    localparam int COEF_W       = 16;    // FIR ç³»æ•° / å¤æ•°æƒé‡ä½å®½
-    localparam int MAX_DELAY    = 64;    // æ•´æ•°å»¶æ—¶æœ€å¤§æ·±åº¦
+    // ---------- TTD ²ÎÊı (Óë²Î¿¼²Ö¿âÒ»ÖÂ) ----------
+    localparam int TAPS         = 16;    // ·ÖÊıÑÓÊ± FIR ³éÍ·Êı
+    localparam int COEF_W       = 16;    // FIR ÏµÊı / ¸´ÊıÈ¨ÖØÎ»¿í
+    localparam int MAX_DELAY    = 64;    // ÕûÊıÑÓÊ±×î´óÉî¶È
 
-    // ---------- æ ‡é‡ç±»å‹ ----------
-    typedef logic signed [DATA_W-1:0]       iq_t;        // åŸºå¸¦ IQ ä¸€è·¯
-    typedef logic signed [FIR_OUT_W-1:0]    iq_fir_t;    // DBF/å†…æ’å IQ
+    // ---------- ±êÁ¿ÀàĞÍ ----------
+    typedef logic signed [DATA_W-1:0]       iq_t;        // »ù´ø IQ Ò»Â·
+    typedef logic signed [FIR_OUT_W-1:0]    iq_fir_t;    // DBF/ÄÚ²åºó IQ
     typedef logic signed [DDS_OUT_W-1:0]    nco_t;       // DDS sin/cos
-    typedef logic signed [MIXER_OUT_W-1:0]  mix_t;       // æ··é¢‘è¾“å‡º
-    typedef logic signed [SUM_OUT_W-1:0]    sum_t;       // æ±‚å’Œè¾“å‡º
-    typedef logic signed [DAC_W-1:0]        dac_t;       // DAC è¾“å‡º
+    typedef logic signed [MIXER_OUT_W-1:0]  mix_t;       // »ìÆµÊä³ö
+    typedef logic signed [SUM_OUT_W-1:0]    sum_t;       // ÇóºÍÊä³ö
+    typedef logic signed [DAC_W-1:0]        dac_t;       // DAC Êä³ö
 
-    // ---------- 8 å¹¶è¡Œé‡‡æ ·ç±»å‹ (unpacked æ•°ç»„) ----------
-    // ç”¨äº 2.4GHz ç­‰æ•ˆåŸŸ: æ¯æ‹ 8 ä¸ªæ—¶åºå¯¹é½çš„å¹¶è¡Œé‡‡æ ·
-    typedef iq_fir_t   iq_fir_8p_t [INTERP-1:0];   // å†…æ’å 8 å¹¶è¡Œ IQ
-    typedef nco_t      nco_8p_t    [INTERP-1:0];   // DDS 8 å¹¶è¡Œ cos/sin
-    typedef mix_t      mix_8p_t   [INTERP-1:0];   // æ··é¢‘å 8 å¹¶è¡Œ
-    typedef sum_t      sum_8p_t   [INTERP-1:0];   // æ±‚å’Œå 8 å¹¶è¡Œ
-    typedef dac_t      dac_8p_t   [INTERP-1:0];   // DAC 8 å¹¶è¡Œ
+    // ---------- 8 ²¢ĞĞ²ÉÑùÀàĞÍ (unpacked Êı×é) ----------
+    // ÓÃÓÚ 2.4GHz µÈĞ§Óò: Ã¿ÅÄ 8 ¸öÊ±Ğò¶ÔÆëµÄ²¢ĞĞ²ÉÑù
+    typedef iq_fir_t   iq_fir_8p_t [INTERP-1:0];   // ÄÚ²åºó 8 ²¢ĞĞ IQ
+    typedef nco_t      nco_8p_t    [INTERP-1:0];   // DDS 8 ²¢ĞĞ cos/sin
+    typedef mix_t      mix_8p_t   [INTERP-1:0];   // »ìÆµºó 8 ²¢ĞĞ
+    typedef sum_t      sum_8p_t   [INTERP-1:0];   // ÇóºÍºó 8 ²¢ĞĞ
+    typedef dac_t      dac_8p_t   [INTERP-1:0];   // DAC 8 ²¢ĞĞ
 
 endpackage : tx_bf_pkg
 

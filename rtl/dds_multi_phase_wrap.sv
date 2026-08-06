@@ -1,16 +1,16 @@
 // =============================================================================
-// dds_multi_phase_wrap.sv â€” 8 ç›¸ä½ DDS åˆæˆå™¨ (åŸºäº Xilinx DDS Compiler IP)
+// dds_multi_phase_wrap.sv ¡ª 8 ÏàÎ» DDS ºÏ³ÉÆ÷ (»ùÓÚ Xilinx DDS Compiler IP)
 // =============================================================================
-// æ›¿ä»£æ‰‹å†™ dds_nco (LUT + $readmemh, ä»¿çœŸæ˜“ X)ã€‚
-// å‚è€ƒ: C:\prj\z669\...\new\dds_core_multi_phase.v
-//   å¤šç›¸ä½ç´¯åŠ  (æ¯æ‹æ¨è¿› N_PARÃ—freq) + æ¯ç›¸ä½ä¾‹åŒ–ä¸€ä¸ª dds_core IP
-//   (s_axis_phase_tdata 64bit = {ç›¸ä½å­—[31:0], é¢‘ç‡å­—[31:0]};
-//    m_axis_data_tdata 32bit = {sin[15:0], cos[15:0]}, æœ‰æ•ˆ 14bit)
+// Ìæ´úÊÖĞ´ dds_nco (LUT + $readmemh, ·ÂÕæÒ× X)¡£
+// ²Î¿¼: C:\prj\z669\...\new\dds_core_multi_phase.v
+//   ¶àÏàÎ»ÀÛ¼Ó (Ã¿ÅÄÍÆ½ø N_PAR¡Áfreq) + Ã¿ÏàÎ»Àı»¯Ò»¸ö dds_core IP
+//   (s_axis_phase_tdata 64bit = {ÏàÎ»×Ö[31:0], ÆµÂÊ×Ö[31:0]};
+//    m_axis_data_tdata 32bit = {sin[15:0], cos[15:0]}, ÓĞĞ§ 14bit)
 //
-// æ¥å£ä¸ dds_nco å®Œå…¨ä¸€è‡´ (beam_duc åªæ”¹æ¨¡å—å):
+// ½Ó¿ÚÓë dds_nco ÍêÈ«Ò»ÖÂ (beam_duc Ö»¸ÄÄ£¿éÃû):
 //   clk/rst/phase_inc/phase_offset/cos_8p[N_PAR]/sin_8p[N_PAR]
-// è¾“å‡º: cos = tdata[13:0]<<2, sin = tdata[29:16]<<2 (å‚è€ƒå®ç°, 14bit æœ‰æ•ˆ)
-// DDS æ ¸è‡ªå¸¦ aresetn (ä½æœ‰æ•ˆ), ä¸Šç”µå¤ä½ â†’ ä»¿çœŸæ—  X
+// Êä³ö: cos = tdata[13:0]<<2, sin = tdata[29:16]<<2 (²Î¿¼ÊµÏÖ, 14bit ÓĞĞ§)
+// DDS ºË×Ô´ø aresetn (µÍÓĞĞ§), ÉÏµç¸´Î» ¡ú ·ÂÕæÎŞ X
 // =============================================================================
 `timescale 1ns/1ps
 
@@ -21,30 +21,30 @@ module dds_multi_phase_wrap #(
 )(
     input  logic                             clk,
     input  logic                             rst,
-    input  logic [PHASE_W-1:0]               phase_inc,     // é¢‘ç‡æ§åˆ¶å­— (æ¯æ‹ç›¸ä½æ­¥è¿›)
-    input  logic [PHASE_W-1:0]               phase_offset,  // åˆå§‹ç›¸ä½
+    input  logic [PHASE_W-1:0]               phase_inc,     // ÆµÂÊ¿ØÖÆ×Ö (Ã¿ÅÄÏàÎ»²½½ø)
+    input  logic [PHASE_W-1:0]               phase_offset,  // ³õÊ¼ÏàÎ»
     output logic signed [OUT_W-1:0]          cos_8p [N_PAR-1:0],
     output logic signed [OUT_W-1:0]          sin_8p [N_PAR-1:0]
 );
 
-    // ---------- æ¯ç›¸ä½é™æ€åˆå§‹ç›¸ä½: phase_offset + kÃ—phase_inc ----------
-    // æ³¨æ„: dds_core IP å†…éƒ¨è‡ªå¸¦ç›¸ä½ç´¯åŠ å™¨ (æ¯æ‹ ç›¸ä½+=é¢‘ç‡å­—),
-    //       å¤–éƒ¨åªéœ€æä¾›æ¯ä¸ª DDS çš„åˆå§‹ç›¸ä½åç½® (ç›¸é‚»æ ·æœ¬ç›¸ä½å·® = phase_inc)
+    // ---------- Ã¿ÏàÎ»¾²Ì¬³õÊ¼ÏàÎ»: phase_offset + k¡Áphase_inc ----------
+    // ×¢Òâ: dds_core IP ÄÚ²¿×Ô´øÏàÎ»ÀÛ¼ÓÆ÷ (Ã¿ÅÄ ÏàÎ»+=ÆµÂÊ×Ö),
+    //       Íâ²¿Ö»ĞèÌá¹©Ã¿¸ö DDS µÄ³õÊ¼ÏàÎ»Æ«ÖÃ (ÏàÁÚÑù±¾ÏàÎ»²î = phase_inc)
     logic [PHASE_W-1:0] phase_off_k [N_PAR-1:0];
     always_comb begin
         for (int p = 0; p < N_PAR; p++) begin
-            phase_off_k[p] = phase_offset + phase_inc * p;   // p ä¸ºå¾ªç¯å¸¸é‡, å¸¸æ•°ä¹˜
+            phase_off_k[p] = phase_offset + phase_inc * p;   // p ÎªÑ­»·³£Á¿, ³£Êı³Ë
         end
     end
 
-    // ---------- N_PAR ä¸ª DDS æ ¸ ----------
-    // é¢‘ç‡å­— = N_PARÃ—phase_inc: DDS æ¯æ‹(300M)åªå‰è¿›ä¸€æ­¥, ä½†ç‰©ç†ä¸Šè·¨è¿‡
-    // N_PAR ä¸ªæ ·æœ¬(2.4G), ç›¸ä½å¿…é¡»ä¸€æ¬¡å¢ N_PARÃ—phase_inc (è§ä¸‹æ³¨)
+    // ---------- N_PAR ¸ö DDS ºË ----------
+    // ÆµÂÊ×Ö = N_PAR¡Áphase_inc: DDS Ã¿ÅÄ(300M)Ö»Ç°½øÒ»²½, µ«ÎïÀíÉÏ¿ç¹ı
+    // N_PAR ¸öÑù±¾(2.4G), ÏàÎ»±ØĞëÒ»´ÎÔö N_PAR¡Áphase_inc (¼ûÏÂ×¢)
     logic [31:0] dds_tdata  [N_PAR-1:0];
     logic        dds_tvalid [N_PAR-1:0];
     logic [PHASE_W-1:0] freq_word;
-    // æ¯æ‹è·¨ N_PAR ä¸ªæ ·æœ¬, ç›¸ä½ä¸€æ¬¡å¢ N_PARÃ—phase_incã€‚
-    // N_PAR ä¸º 2 çš„å¹‚ â†’ ä¹˜ N_PAR = å·¦ç§» N_PAR_LOG2 (ç»¼åˆå™¨å¯¹å¸¸æ•°ä¹˜æœ¬å°±ä¼˜åŒ–ä¸ºç§»ä½, æ˜¾å¼å†™æ›´æ¸…æ™°)
+    // Ã¿ÅÄ¿ç N_PAR ¸öÑù±¾, ÏàÎ»Ò»´ÎÔö N_PAR¡Áphase_inc¡£
+    // N_PAR Îª 2 µÄÃİ ¡ú ³Ë N_PAR = ×óÒÆ N_PAR_LOG2 (×ÛºÏÆ÷¶Ô³£Êı³Ë±¾¾ÍÓÅ»¯ÎªÒÆÎ», ÏÔÊ½Ğ´¸üÇåÎú)
     localparam int N_PAR_LOG2 = (N_PAR > 1) ? $clog2(N_PAR) : 0;
     assign freq_word = phase_inc << N_PAR_LOG2;
 
@@ -54,11 +54,11 @@ module dds_multi_phase_wrap #(
             .aclken              (1'b1),
             .aresetn             (~rst),
             .s_axis_phase_tvalid (1'b1),
-            .s_axis_phase_tdata  ({phase_off_k[p], freq_word}),   // {åˆå§‹ç›¸ä½, é¢‘ç‡å­—}; ç´¯åŠ åœ¨ IP å†…
+            .s_axis_phase_tdata  ({phase_off_k[p], freq_word}),   // {³õÊ¼ÏàÎ», ÆµÂÊ×Ö}; ÀÛ¼ÓÔÚ IP ÄÚ
             .m_axis_data_tvalid  (dds_tvalid[p]),
-            .m_axis_data_tdata   (dds_tdata[p])               // {sin, cos} å„ 16bit
+            .m_axis_data_tdata   (dds_tdata[p])               // {sin, cos} ¸÷ 16bit
         );
-        // è¾“å‡º: cos = tdata[13:0]<<2, sin = tdata[29:16]<<2 (å‚è€ƒå®ç°, 14bit æœ‰æ•ˆ)
+        // Êä³ö: cos = tdata[13:0]<<2, sin = tdata[29:16]<<2 (²Î¿¼ÊµÏÖ, 14bit ÓĞĞ§)
         assign cos_8p[p] = {dds_tdata[p][13:0], 2'b00};
         assign sin_8p[p] = {dds_tdata[p][29:16], 2'b00};
     end
