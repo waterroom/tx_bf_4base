@@ -14,8 +14,8 @@
 import tx_bf_pkg::*;
 
 module da_data_gen #(
-    // 本片地址: 报文 Dest_id 匹配才解析 (片0=0x0001, 片1=0x0002, 各综合一次)
-    parameter logic [15:0] CHIP_ID = 16'h0001
+    // 片号 (0=片0, 1=片1): 16 元全局编址地址拆片, 两片各综合一次设不同值
+    parameter int unsigned CHIP_ID = 0
 )(
     input  logic                        dac_coreclk,    // 数据路径时钟 (= clk_300m)
     input  logic                        rst_dac,       // dac_coreclk 域异步复位 (高有效)

@@ -121,18 +121,18 @@ module tb_da_data_gen;
         // data 格式: {coef[15:0], 12'b0, tap[3:0]} → tap=7 低 8 位 = 0x70
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
-                content_q.push_back({32'h6702_0000 + b*8 + c, 32'h7FFF_0070});
+                content_q.push_back({32'h6702_0000 + b*16 + c, 32'h7FFF_0070});
         // 权重 (beam0..3, ch0..7, re=0x4000, im=0)
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
-                content_q.push_back({32'h6703_0000 + b*8 + c, 32'h0000_7FFF});
+                content_q.push_back({32'h6703_0000 + b*16 + c, 32'h0000_7FFF});
         // phase_inc (beam0 = 200MHz → phase_inc = 200e6/2.4e9 * 2^32)
         content_q.push_back({32'h6705_0000, 32'h36BA2E8B}); // ≈200MHz
         content_q.push_back({32'h6706_0000, 32'h0000_0000}); // phase_offset=0
         // delay=0 (全部)
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
-                content_q.push_back({32'h6701_0000 + b*8 + c, 32'h0000_0000});
+                content_q.push_back({32'h6701_0000 + b*16 + c, 32'h0000_0000});
 
         send_packet(32'h0A0C_000B, content_q);  // apply (暂存 + rst_bf_request)
 

@@ -133,7 +133,7 @@ module tb_decode_cmd_tx_bf;
         // ===== 用例 2: 权重加载 (beam2/ch5, re=0x4000, im=0x8000) =====
         $display("=== 用例 2: 权重加载 ===");
         content_q = {};
-        content_q.push_back({32'h6703_0015, 32'h8000_4000}); // idx=2*8+5=21=0x15, data={im=0x8000, re=0x4000}
+        content_q.push_back({32'h6703_0025, 32'h8000_4000}); // idx=2*16+5=37=0x25, data={im=0x8000, re=0x4000}
         send_packet(32'h0A0C_000B, content_q);
         repeat(30) @(posedge da_clk);
         if (!weight_load_seen[2] || weight_sel_ch_cap !== 5 || weight_re_cap !== 16'h4000 || weight_im_cap !== 16'h8000) begin
@@ -146,7 +146,7 @@ module tb_decode_cmd_tx_bf;
         $display("=== 用例 3: delay + phase apply 提交 ===");
         content_q = {};
         content_q.push_back({32'h6701_0000, 32'h0000_000A}); // delay[0][0]=10
-        content_q.push_back({32'h6701_0017, 32'h0000_0014}); // delay[3][7]=20 (idx=3*8+7=31=0x1F? 不对, 31=0x1F)
+        content_q.push_back({32'h6701_0037, 32'h0000_0014}); // delay[3][7]=20 (idx=3*16+7=55=0x37)
         content_q.push_back({32'h6705_0000, 32'h1234_5678}); // phase_inc[0]
         content_q.push_back({32'h6706_0001, 32'hABCD_EF01}); // phase_offset[1]
         send_packet(32'h0A0C_000B, content_q);  // apply 报文
@@ -166,6 +166,21 @@ module tb_decode_cmd_tx_bf;
             $display("  FAIL: delay[0][0]=%0d (应保持 10)", delay_val[0][0]);
             errors++;
         end else $display("  PASS");
+
+        // ===== 用例 5: 片 1 (ch∈8..15) 条目应被忽略 (CHIP_ID=0) =====
+        $display("=== 用例 5: 片 1 条目忽略 ===");
+        content_q = {};
+        content_q.push_back({32'h6702_000F, 32'h7FFF_0070}); // idx=15: beam0/ch15(片1) → 忽略
+        content_q.push_back({32'h6703_000F, 32'h8000_4000}); // idx=15: 片1 → 忽略
+        content_q.push_back({32'h6701_000F, 32'h0000_0063}); // delay beam0/ch15(片1) → 忽略
+        send_packet(32'h0A0C_000B, content_q);  // apply
+        repeat(30) @(posedge da_clk);
+        // 不应产生新 load (sel_ch 应保持前值: fir=0, weight=5); delay[0][7] 应保持 0
+        if (fir_sel_ch_cap !== 0 || weight_sel_ch_cap !== 5 || delay_val[0][7] !== 0) begin
+            $display("  FAIL: 片1 条目被处理 (fir_sel_ch=%0d weight_sel_ch=%0d delay[0][7]=%0d)", fir_sel_ch_cap, weight_sel_ch_cap, delay_val[0][7]);
+            errors++;
+        end else $display("  PASS");
+        repeat(5) @(posedge da_clk);
 
         // ===== 结论 =====
         if (errors == 0) $display("\n=== ALL PASS ===");

@@ -30,7 +30,7 @@ module decode_cmd_tx_bf #(
     parameter int unsigned COEF_W_P     = COEF_W,     // 16
     parameter int unsigned DDS_PHASE_W_P= DDS_PHASE_W, // 32
     // 本片地址: 报文 Dest_id 匹配才解析 (两片 ZU48DR 各设不同值)
-    parameter logic [15:0] CHIP_ID = 16'h0001
+    parameter int unsigned CHIP_ID = 0                 // 片号 (0=片0, 1=片1): 地址拆片
 )(
     input  logic                                              da_clk,
     input  logic                                              rst_da_clk,
@@ -163,7 +163,6 @@ module decode_cmd_tx_bf #(
 
     reg [4:0]   main_st = IDLE;
     reg [31:0]  Function_id;
-    reg [15:0]  Dest_id;                    // 目的地址 (选片: 匹配 CHIP_ID 才处理)
     reg         main_st_is_MESSAGE_CONTENT;
     reg         main_st_is_PACKET_CHEKSUM;
 
@@ -188,11 +187,7 @@ module decode_cmd_tx_bf #(
                 PACKET_FUNCTION: begin
                     if (da_data_valid_reg[2]) begin
                         Function_id <= da_data_reg[2][31:0];
-                        Dest_id     <= da_data_reg[2][63:48];
-                        if (da_data_reg[2][63:48] == CHIP_ID)
-                            main_st <= PACKET_TIME;   // 本片: 继续解析
-                        else
-                            main_st <= IDLE;          // 非本片: 丢弃整包, 等下一帧头
+                        main_st <= PACKET_TIME;
                     end
                 end
                 PACKET_TIME: begin
@@ -262,7 +257,9 @@ module decode_cmd_tx_bf #(
     // ========================================================================
     // 6. 寄存器解析 (MESSAGE_CONTENT 状态, da_data_reg[2])
     //    地址码 = da_data_reg[2][63:32], 数据 = da_data_reg[2][31:0]
-    //    idx = 地址低 5 位, beam = idx[4:3], ch = idx[2:0]
+    //    16 元全局编址: idx = beam×16 + ch (beam∈0..3, ch∈0..15, idx∈0..63)
+    //      idx[5:4]=beam, idx[3]=片号 (匹配 CHIP_ID), idx[2:0]=本片通道
+    //    DDS 频率 (0x6705/0x6706) 不解片: 两片解到同一频率
     // ========================================================================
 
     // 地址码匹配: 取高 16 位做基址判断, 低 16 位做 idx
@@ -274,6 +271,11 @@ module decode_cmd_tx_bf #(
     wire is_0x6703 = (msg_base == 16'h6703);
     wire is_0x6705 = (msg_base == 16'h6705);
     wire is_0x6706 = (msg_base == 16'h6706);
+    // 地址拆片: 本片才处理 (片0: ch∈0..7, 片1: ch∈8..15)
+    wire [1:0]  beam_sel = msg_idx[5:4];
+    wire        chip_sel = msg_idx[3];
+    wire [$clog2(N_CH_P)-1:0] ch_sel = msg_idx[2:0];
+    wire        match_chip = (chip_sel == CHIP_ID[0]);
 
     // ---- 6a. delay_val (暂存 → apply 提交) ----
     logic [$clog2(MAX_DELAY_P+1)-1:0] delay_val_temp [N_BEAM_P-1:0][N_CH_P-1:0];
@@ -282,11 +284,10 @@ module decode_cmd_tx_bf #(
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val_temp[b][c] <= '0;
-        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6701) begin
+        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6701 && match_chip) begin
             for (int b = 0; b < N_BEAM_P; b++)
-                for (int c = 0; c < N_CH_P; c++)
-                    if (msg_idx == (b * N_CH_P + c))
-                        delay_val_temp[b][c] <= da_data_reg[2][$clog2(MAX_DELAY_P+1)-1:0];
+                if (beam_sel == b)
+                    delay_val_temp[b][ch_sel] <= da_data_reg[2][$clog2(MAX_DELAY_P+1)-1:0];
         end
     end
     // apply 提交
@@ -303,7 +304,7 @@ module decode_cmd_tx_bf #(
     end
 
     // ---- 6b. FIR 系数 (立即加载, 数据内嵌 tap_addr) ----
-    // data[31:16]=coef, [7:4]=tap_addr, idx=beam*8+ch
+    // data[31:16]=coef, [7:4]=tap_addr, idx=beam*16+ch (全局 16 元)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++) fir_coef_load[b] <= 0;
@@ -314,15 +315,13 @@ module decode_cmd_tx_bf #(
             // 默认清零
             for (int b = 0; b < N_BEAM_P; b++) fir_coef_load[b] <= 0;
             // 命中 0x6702 时立即加载
-            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6702) begin
+            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6702 && match_chip) begin
                 for (int b = 0; b < N_BEAM_P; b++) begin
-                    for (int c = 0; c < N_CH_P; c++) begin
-                        if (msg_idx == (b * N_CH_P + c)) begin
-                            fir_coef_load[b] <= 1;
-                            fir_sel_ch    <= c[$clog2(N_CH_P)-1:0];
-                            fir_coef_addr <= da_data_reg[2][7:4];
-                            fir_coef_data <= da_data_reg[2][31:16];
-                        end
+                    if (beam_sel == b) begin
+                        fir_coef_load[b] <= 1;
+                        fir_sel_ch    <= ch_sel;
+                        fir_coef_addr <= da_data_reg[2][7:4];
+                        fir_coef_data <= da_data_reg[2][31:16];
                     end
                 end
             end
@@ -330,7 +329,7 @@ module decode_cmd_tx_bf #(
     end
 
     // ---- 6c. 复数权重 (立即加载) ----
-    // data[31:16]=im, [15:0]=re, idx=beam*8+ch
+    // data[31:16]=im, [15:0]=re, idx=beam*16+ch (全局 16 元)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++) weight_load[b] <= 0;
@@ -339,15 +338,13 @@ module decode_cmd_tx_bf #(
             weight_im     <= 0;
         end else begin
             for (int b = 0; b < N_BEAM_P; b++) weight_load[b] <= 0;
-            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6703) begin
+            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6703 && match_chip) begin
                 for (int b = 0; b < N_BEAM_P; b++) begin
-                    for (int c = 0; c < N_CH_P; c++) begin
-                        if (msg_idx == (b * N_CH_P + c)) begin
-                            weight_load[b]  <= 1;
-                            weight_sel_ch   <= c[$clog2(N_CH_P)-1:0];
-                            weight_re       <= da_data_reg[2][15:0];
-                            weight_im       <= da_data_reg[2][31:16];
-                        end
+                    if (beam_sel == b) begin
+                        weight_load[b]  <= 1;
+                        weight_sel_ch   <= ch_sel;
+                        weight_re       <= da_data_reg[2][15:0];
+                        weight_im       <= da_data_reg[2][31:16];
                     end
                 end
             end
@@ -355,6 +352,7 @@ module decode_cmd_tx_bf #(
     end
 
     // ---- 6d. phase_inc / phase_offset (暂存 → apply 提交) ----
+    //    不解片: 两片 ZU48DR 解到相同 DDS 频率 (16 元波束共用频率)
     logic [DDS_PHASE_W_P-1:0] phase_inc_temp    [N_BEAM_P-1:0];
     logic [DDS_PHASE_W_P-1:0] phase_offset_temp [N_BEAM_P-1:0];
     always_ff @(posedge da_clk) begin
