@@ -93,21 +93,28 @@ module tb_da_data_gen;
         async_rst_n = 0;
         repeat(20) @(posedge dac_coreclk);
         async_rst_n = 1;
-        repeat(20) @(posedge dac_coreclk);
+        // 等待 decode 内 xpm_fifo_async 复位释放 (否则第一个报文前几字丢失)
+        repeat(500) @(posedge dac_coreclk);
 
-        // 配置: 权重 1+0j (每波束每通道) + phase_inc (每波束) + apply
+        // 配置: FIR 直通 + 权重 1+0j + phase_inc + delay + apply
         $display("=== 发送配置报文 ===");
         content_q = {};
-        // 权重 (beam0..3, ch0..7, re=0x4000, im=0) —— 简化: 只配 beam0 的 ch0
-        for (int b = 0; b < 1; b++)
+        // FIR 分数延时直通系数: 每通道中心抽头 tap=7, coef=16384(1.0)
+        // data 格式: {coef[15:0], 12'b0, tap[3:0]} → tap=7 低 8 位 = 0x70
+        for (int b = 0; b < N_BEAM; b++)
+            for (int c = 0; c < N_ELEM; c++)
+                content_q.push_back({32'h6702_0000 + b*8 + c, 32'h4000_0070});
+        // 权重 (beam0..3, ch0..7, re=0x4000, im=0)
+        for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6703_0000 + b*8 + c, 32'h0000_4000});
         // phase_inc (beam0 = 200MHz → phase_inc = 200e6/2.4e9 * 2^32)
         content_q.push_back({32'h6705_0000, 32'h36BA2E8B}); // ≈200MHz
         content_q.push_back({32'h6706_0000, 32'h0000_0000}); // phase_offset=0
         // delay=0 (全部)
-        for (int c = 0; c < N_ELEM; c++)
-            content_q.push_back({32'h6701_0000 + c, 32'h0000_0000});
+        for (int b = 0; b < N_BEAM; b++)
+            for (int c = 0; c < N_ELEM; c++)
+                content_q.push_back({32'h6701_0000 + b*8 + c, 32'h0000_0000});
 
         send_packet(32'h0A0C_000B, content_q);  // apply
 
