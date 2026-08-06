@@ -8,37 +8,37 @@
 
 ## 2. 模块端口
 
-| 方向 | 信号 | 位宽 | 说明 |
-|------|------|------|------|
-| in | `dac_coreclk` | 1 | 数据路径时钟 (300MHz) |
-| in | `rst_dac` | 1 | **dac_coreclk 域**异步复位（高有效）——顶层入口，内部 reset_sync 同步一次 |
-| in | `rst_cmd` | 1 | **cmd_clk 域**异步复位（高有效）——顶层入口，内部 reset_sync 同步一次 |
-| in | `cmd_clk` | 1 | 命令时钟（异步于 dac_coreclk）|
-| in | `cmd_data` | 64 | 64b 并行报文 |
-| in | `cmd_data_valid` | 1 | 报文有效 |
-| in | `bb_i` | 4×16 | 4 波束基带 I |
-| in | `bb_q` | 4×16 | 4 波束基带 Q |
-| in | `bb_valid` | 4 | 4 波束有效 |
-| out | `rst_bf_request` | 1 | apply 报文到达脉冲（DDS 频率切换请求）|
-| in | `rst_bf` | 1 | 两片同步门（高有效）——外部主控给两片同时拉高，有效期间提交新 DDS 频率 + 复位数据路径 |
-| in | `dac0_nco_0_*` / `user_sysref_dac` | — | ILA 调试探针（透传）|
-| in | `sXX_axis_0_tready` ×8 | 1 | AXI-Stream TREADY（ILA 监控，透传）|
-| out | `s00~s32_axis_0_tdata` ×8 | 256 | **DAC 输出**（AXI-Stream TDATA）：每路 8 并行样本 × 交替 {I[15:0], Q[15:0]}；映射 s00=阵元0 … s32=阵元7 |
+| 方向   | 信号                               | 位宽   | 说明                                                                                                    |
+| ------ | ------                             | ------ | ------                                                                                                  |
+| in     | `dac_coreclk`                      | 1      | 数据路径时钟 (300MHz)                                                                                   |
+| in     | `rst_dac`                          | 1      | **dac_coreclk 域**异步复位（高有效）——顶层入口，内部 reset_sync 同步一次                                |
+| in     | `rst_cmd`                          | 1      | **cmd_clk 域**异步复位（高有效）——顶层入口，内部 reset_sync 同步一次                                    |
+| in     | `cmd_clk`                          | 1      | 命令时钟（异步于 dac_coreclk）                                                                          |
+| in     | `cmd_data`                         | 64     | 64b 并行报文                                                                                            |
+| in     | `cmd_data_valid`                   | 1      | 报文有效                                                                                                |
+| in     | `bb_i`                             | 4×16   | 4 波束基带 I                                                                                            |
+| in     | `bb_q`                             | 4×16   | 4 波束基带 Q                                                                                            |
+| in     | `bb_valid`                         | 4      | 4 波束有效                                                                                              |
+| out    | `rst_bf_request`                   | 1      | apply 报文到达脉冲（DDS 频率切换请求）                                                                  |
+| in     | `rst_bf`                           | 1      | 两片同步门（高有效）——外部主控给两片同时拉高，有效期间提交新 DDS 频率 + 复位数据路径                    |
+| in     | `dac0_nco_0_*` / `user_sysref_dac` | —      | ILA 调试探针（透传）                                                                                    |
+| in     | `sXX_axis_0_tready` ×8             | 1      | AXI-Stream TREADY（ILA 监控，透传）                                                                     |
+| out    | `s00~s32_axis_0_tdata` ×8          | 256    | **DAC 输出**（AXI-Stream TDATA）：每路 8 并行样本 × 交替 {I[15:0], Q[15:0]}；映射 s00=阵元0 … s32=阵元7 |
 
 ## 3. 报文格式（64b 并行）
 
 每拍 64bit，按状态机逐字解析：
 
-| 序号 | 状态 | [63:32] | [31:0] | 说明 |
-|------|------|---------|--------|------|
-| 1 | PACKET_HEAD | `0x7E8118E7` | Packet_Len | 帧头 |
-| 2 | PACKET_FUNCTION | {Dest_id[16], Device_id[16]} | Function_id | apply 门: `0x0A0C_000B` |
-| 3 | PACKET_TIME | Message_Time[63:32] | [31:0] | 时间戳（忽略）|
-| 4 | PACKET_Amount | Serial_Num | Packet_Amount | 序列号（忽略）|
-| 5 | PACKET_DATA_LEN | Packet_Num | Data_Len | 包号（忽略）|
-| 6 | PACKET_VERSION | {Version, Return_Addr} | 保留 0 | 版本（忽略）|
-| 7..N | MESSAGE_CONTENT | 寄存器地址码 | 寄存器数据 | 见寄存器映射 |
-| N+1 | (帧尾检测) | Checksum | `0x8F9009F8` | 帧尾（在 CONTENT 内检测）|
+| 序号   | 状态            | [63:32]                      | [31:0]        | 说明                      |
+| ------ | ------          | ---------                    | --------      | ------                    |
+| 1      | PACKET_HEAD     | `0x7E8118E7`                 | Packet_Len    | 帧头                      |
+| 2      | PACKET_FUNCTION | {Dest_id[16], Device_id[16]} | Function_id   | apply 门: `0x0A0C_000B`   |
+| 3      | PACKET_TIME     | Message_Time[63:32]          | [31:0]        | 时间戳（忽略）            |
+| 4      | PACKET_Amount   | Serial_Num                   | Packet_Amount | 序列号（忽略）            |
+| 5      | PACKET_DATA_LEN | Packet_Num                   | Data_Len      | 包号（忽略）              |
+| 6      | PACKET_VERSION  | {Version, Return_Addr}       | 保留 0        | 版本（忽略）              |
+| 7..N   | MESSAGE_CONTENT | 寄存器地址码                 | 寄存器数据    | 见寄存器映射              |
+| N+1    | (帧尾检测)      | Checksum                     | `0x8F9009F8`  | 帧尾（在 CONTENT 内检测） |
 
 **帧头**：`0x7E8118E7`（32bit，在 [63:32]）
 **帧尾**：`0x8F9009F8`（32bit，在 [31:0]）
@@ -49,13 +49,13 @@
 地址码 = `da_data[63:32]`，数据 = `da_data[31:0]`。
 索引：`idx = beam × 8 + ch`（beam∈0..3, ch∈0..7, idx∈0..31）
 
-| 地址码 | idx 范围 | 字段 | data[31:0] 布局 | 动作 |
-|--------|----------|------|----------------|------|
-| `0x6701_0000 + idx` | 0..31 | delay_val[beam][ch] | [6:0]=delay (7bit) | **apply 提交** |
-| `0x6702_0000 + idx` | 0..31 | FIR coef[beam][ch] | [31:16]=coef, [7:4]=tap_addr | **立即加载** |
-| `0x6703_0000 + idx` | 0..31 | weight[beam][ch] | [31:16]=im, [15:0]=re | **立即加载** |
-| `0x6705_0000 + beam` | 0..3 | phase_inc[beam] | [31:0]=phase_inc | **apply 提交** |
-| `0x6706_0000 + beam` | 0..3 | phase_offset[beam] | [31:0]=phase_offset | **apply 提交** |
+| 地址码               | idx 范围   | 字段                | data[31:0] 布局              | 动作           |
+| --------             | ---------- | ------              | ----------------             | ------         |
+| `0x6701_0000 + idx`  | 0..31      | delay_val[beam][ch] | [6:0]=delay (7bit)           | **apply 提交** |
+| `0x6702_0000 + idx`  | 0..31      | FIR coef[beam][ch]  | [31:16]=coef, [7:4]=tap_addr | **立即加载**   |
+| `0x6703_0000 + idx`  | 0..31      | weight[beam][ch]    | [31:16]=im, [15:0]=re        | **立即加载**   |
+| `0x6705_0000 + beam` | 0..3       | phase_inc[beam]     | [31:0]=phase_inc             | **apply 提交** |
+| `0x6706_0000 + beam` | 0..3       | phase_offset[beam]  | [31:0]=phase_offset          | **apply 提交** |
 
 ### 动作说明
 
