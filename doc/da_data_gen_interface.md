@@ -19,10 +19,11 @@
 | in | `bb_i` | 4×16 | 4 波束基带 I |
 | in | `bb_q` | 4×16 | 4 波束基带 Q |
 | in | `bb_valid` | 4 | 4 波束有效 |
-| out | `dac_i_8p` | 8×8×16 | 8 阵元×8 并行 I |
-| out | `dac_q_8p` | 8×8×16 | 8 阵元×8 并行 Q |
-| out | `dac_valid` | 8 | 8 阵元有效 |
-| out | `rst_bf_request` | 1 | apply 报文到达脉冲 |
+| out | `rst_bf_request` | 1 | apply 报文到达脉冲（DDS 频率切换请求）|
+| in | `rst_bf` | 1 | 两片同步门（高有效）——外部主控给两片同时拉高，有效期间提交新 DDS 频率 + 复位数据路径 |
+| in | `dac0_nco_0_*` / `user_sysref_dac` | — | ILA 调试探针（透传）|
+| in | `sXX_axis_0_tready` ×8 | 1 | AXI-Stream TREADY（ILA 监控，透传）|
+| out | `s00~s32_axis_0_tdata` ×8 | 256 | **DAC 输出**（AXI-Stream TDATA）：每路 8 并行样本 × 交替 {I[15:0], Q[15:0]}；映射 s00=阵元0 … s32=阵元7 |
 
 ## 3. 报文格式（64b 并行）
 

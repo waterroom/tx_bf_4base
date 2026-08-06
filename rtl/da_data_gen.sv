@@ -29,10 +29,7 @@ module da_data_gen (
     input  logic signed [DATA_W-1:0]    bb_q [N_BEAM-1:0],
     input  logic                        bb_valid [N_BEAM-1:0],
 
-    // 8 路 RF-DAC 输出 (复数 I/Q, 8 并行 @300MHz = 2.4Gs/s)
-    output logic signed [DAC_W-1:0]     dac_i_8p [N_ELEM-1:0][INTERP-1:0],
-    output logic signed [DAC_W-1:0]     dac_q_8p [N_ELEM-1:0][INTERP-1:0],
-    output logic                        dac_valid [N_ELEM-1:0],
+    // DAC 输出经 AXI-Stream TDATA (见下方 sXX_axis_0_tdata 打包)
 
     // apply 报文到达脉冲 (DDS 频率切换请求, 供外部主控触发两片同步)
     output logic                        rst_bf_request,
@@ -133,6 +130,11 @@ module da_data_gen (
     );
     assign rst_bf_request = cfg_apply_pulse;
 
+    // ---------- tx_top 输出 → 内部 DAC 数据 (供 AXI-Stream TDATA 打包) ----------
+    logic signed [DAC_W-1:0] dac_i_8p_int [N_ELEM-1:0][INTERP-1:0];
+    logic signed [DAC_W-1:0] dac_q_8p_int [N_ELEM-1:0][INTERP-1:0];
+    logic                    dac_valid_int [N_ELEM-1:0];
+
     // ---------- tx_top (cfg_* 端口版, 同步高有效复位) ----------
     tx_top u_tx (
         .clk_300m         (dac_coreclk),
@@ -151,9 +153,9 @@ module da_data_gen (
         .cfg_weight_sel_ch(cfg_weight_sel_ch),
         .cfg_weight_re    (cfg_weight_re),
         .cfg_weight_im    (cfg_weight_im),
-        .dac_i_8p         (dac_i_8p),
-        .dac_q_8p         (dac_q_8p),
-        .dac_valid        (dac_valid)
+        .dac_i_8p         (dac_i_8p_int),
+        .dac_q_8p         (dac_q_8p_int),
+        .dac_valid        (dac_valid_int)
     );
 
     // ---------- AXI-Stream TDATA 打包 (参考工程格式) ----------
@@ -162,38 +164,38 @@ module da_data_gen (
     // 路映射: s00=阵元0, s02=阵元1, s10=阵元2, s12=阵元3,
     //         s20=阵元4, s22=阵元5, s30=阵元6, s32=阵元7
     // (SV 允许读 output 端口, 直接打包 dac_i_8p/dac_q_8p)
-    assign s00_axis_0_tdata = {dac_q_8p[0][7], dac_i_8p[0][7], dac_q_8p[0][6], dac_i_8p[0][6],
-                               dac_q_8p[0][5], dac_i_8p[0][5], dac_q_8p[0][4], dac_i_8p[0][4],
-                               dac_q_8p[0][3], dac_i_8p[0][3], dac_q_8p[0][2], dac_i_8p[0][2],
-                               dac_q_8p[0][1], dac_i_8p[0][1], dac_q_8p[0][0], dac_i_8p[0][0]};
-    assign s02_axis_0_tdata = {dac_q_8p[1][7], dac_i_8p[1][7], dac_q_8p[1][6], dac_i_8p[1][6],
-                               dac_q_8p[1][5], dac_i_8p[1][5], dac_q_8p[1][4], dac_i_8p[1][4],
-                               dac_q_8p[1][3], dac_i_8p[1][3], dac_q_8p[1][2], dac_i_8p[1][2],
-                               dac_q_8p[1][1], dac_i_8p[1][1], dac_q_8p[1][0], dac_i_8p[1][0]};
-    assign s10_axis_0_tdata = {dac_q_8p[2][7], dac_i_8p[2][7], dac_q_8p[2][6], dac_i_8p[2][6],
-                               dac_q_8p[2][5], dac_i_8p[2][5], dac_q_8p[2][4], dac_i_8p[2][4],
-                               dac_q_8p[2][3], dac_i_8p[2][3], dac_q_8p[2][2], dac_i_8p[2][2],
-                               dac_q_8p[2][1], dac_i_8p[2][1], dac_q_8p[2][0], dac_i_8p[2][0]};
-    assign s12_axis_0_tdata = {dac_q_8p[3][7], dac_i_8p[3][7], dac_q_8p[3][6], dac_i_8p[3][6],
-                               dac_q_8p[3][5], dac_i_8p[3][5], dac_q_8p[3][4], dac_i_8p[3][4],
-                               dac_q_8p[3][3], dac_i_8p[3][3], dac_q_8p[3][2], dac_i_8p[3][2],
-                               dac_q_8p[3][1], dac_i_8p[3][1], dac_q_8p[3][0], dac_i_8p[3][0]};
-    assign s20_axis_0_tdata = {dac_q_8p[4][7], dac_i_8p[4][7], dac_q_8p[4][6], dac_i_8p[4][6],
-                               dac_q_8p[4][5], dac_i_8p[4][5], dac_q_8p[4][4], dac_i_8p[4][4],
-                               dac_q_8p[4][3], dac_i_8p[4][3], dac_q_8p[4][2], dac_i_8p[4][2],
-                               dac_q_8p[4][1], dac_i_8p[4][1], dac_q_8p[4][0], dac_i_8p[4][0]};
-    assign s22_axis_0_tdata = {dac_q_8p[5][7], dac_i_8p[5][7], dac_q_8p[5][6], dac_i_8p[5][6],
-                               dac_q_8p[5][5], dac_i_8p[5][5], dac_q_8p[5][4], dac_i_8p[5][4],
-                               dac_q_8p[5][3], dac_i_8p[5][3], dac_q_8p[5][2], dac_i_8p[5][2],
-                               dac_q_8p[5][1], dac_i_8p[5][1], dac_q_8p[5][0], dac_i_8p[5][0]};
-    assign s30_axis_0_tdata = {dac_q_8p[6][7], dac_i_8p[6][7], dac_q_8p[6][6], dac_i_8p[6][6],
-                               dac_q_8p[6][5], dac_i_8p[6][5], dac_q_8p[6][4], dac_i_8p[6][4],
-                               dac_q_8p[6][3], dac_i_8p[6][3], dac_q_8p[6][2], dac_i_8p[6][2],
-                               dac_q_8p[6][1], dac_i_8p[6][1], dac_q_8p[6][0], dac_i_8p[6][0]};
-    assign s32_axis_0_tdata = {dac_q_8p[7][7], dac_i_8p[7][7], dac_q_8p[7][6], dac_i_8p[7][6],
-                               dac_q_8p[7][5], dac_i_8p[7][5], dac_q_8p[7][4], dac_i_8p[7][4],
-                               dac_q_8p[7][3], dac_i_8p[7][3], dac_q_8p[7][2], dac_i_8p[7][2],
-                               dac_q_8p[7][1], dac_i_8p[7][1], dac_q_8p[7][0], dac_i_8p[7][0]};
+    assign s00_axis_0_tdata = {dac_q_8p_int[0][7], dac_i_8p_int[0][7], dac_q_8p_int[0][6], dac_i_8p_int[0][6],
+                               dac_q_8p_int[0][5], dac_i_8p_int[0][5], dac_q_8p_int[0][4], dac_i_8p_int[0][4],
+                               dac_q_8p_int[0][3], dac_i_8p_int[0][3], dac_q_8p_int[0][2], dac_i_8p_int[0][2],
+                               dac_q_8p_int[0][1], dac_i_8p_int[0][1], dac_q_8p_int[0][0], dac_i_8p_int[0][0]};
+    assign s02_axis_0_tdata = {dac_q_8p_int[1][7], dac_i_8p_int[1][7], dac_q_8p_int[1][6], dac_i_8p_int[1][6],
+                               dac_q_8p_int[1][5], dac_i_8p_int[1][5], dac_q_8p_int[1][4], dac_i_8p_int[1][4],
+                               dac_q_8p_int[1][3], dac_i_8p_int[1][3], dac_q_8p_int[1][2], dac_i_8p_int[1][2],
+                               dac_q_8p_int[1][1], dac_i_8p_int[1][1], dac_q_8p_int[1][0], dac_i_8p_int[1][0]};
+    assign s10_axis_0_tdata = {dac_q_8p_int[2][7], dac_i_8p_int[2][7], dac_q_8p_int[2][6], dac_i_8p_int[2][6],
+                               dac_q_8p_int[2][5], dac_i_8p_int[2][5], dac_q_8p_int[2][4], dac_i_8p_int[2][4],
+                               dac_q_8p_int[2][3], dac_i_8p_int[2][3], dac_q_8p_int[2][2], dac_i_8p_int[2][2],
+                               dac_q_8p_int[2][1], dac_i_8p_int[2][1], dac_q_8p_int[2][0], dac_i_8p_int[2][0]};
+    assign s12_axis_0_tdata = {dac_q_8p_int[3][7], dac_i_8p_int[3][7], dac_q_8p_int[3][6], dac_i_8p_int[3][6],
+                               dac_q_8p_int[3][5], dac_i_8p_int[3][5], dac_q_8p_int[3][4], dac_i_8p_int[3][4],
+                               dac_q_8p_int[3][3], dac_i_8p_int[3][3], dac_q_8p_int[3][2], dac_i_8p_int[3][2],
+                               dac_q_8p_int[3][1], dac_i_8p_int[3][1], dac_q_8p_int[3][0], dac_i_8p_int[3][0]};
+    assign s20_axis_0_tdata = {dac_q_8p_int[4][7], dac_i_8p_int[4][7], dac_q_8p_int[4][6], dac_i_8p_int[4][6],
+                               dac_q_8p_int[4][5], dac_i_8p_int[4][5], dac_q_8p_int[4][4], dac_i_8p_int[4][4],
+                               dac_q_8p_int[4][3], dac_i_8p_int[4][3], dac_q_8p_int[4][2], dac_i_8p_int[4][2],
+                               dac_q_8p_int[4][1], dac_i_8p_int[4][1], dac_q_8p_int[4][0], dac_i_8p_int[4][0]};
+    assign s22_axis_0_tdata = {dac_q_8p_int[5][7], dac_i_8p_int[5][7], dac_q_8p_int[5][6], dac_i_8p_int[5][6],
+                               dac_q_8p_int[5][5], dac_i_8p_int[5][5], dac_q_8p_int[5][4], dac_i_8p_int[5][4],
+                               dac_q_8p_int[5][3], dac_i_8p_int[5][3], dac_q_8p_int[5][2], dac_i_8p_int[5][2],
+                               dac_q_8p_int[5][1], dac_i_8p_int[5][1], dac_q_8p_int[5][0], dac_i_8p_int[5][0]};
+    assign s30_axis_0_tdata = {dac_q_8p_int[6][7], dac_i_8p_int[6][7], dac_q_8p_int[6][6], dac_i_8p_int[6][6],
+                               dac_q_8p_int[6][5], dac_i_8p_int[6][5], dac_q_8p_int[6][4], dac_i_8p_int[6][4],
+                               dac_q_8p_int[6][3], dac_i_8p_int[6][3], dac_q_8p_int[6][2], dac_i_8p_int[6][2],
+                               dac_q_8p_int[6][1], dac_i_8p_int[6][1], dac_q_8p_int[6][0], dac_i_8p_int[6][0]};
+    assign s32_axis_0_tdata = {dac_q_8p_int[7][7], dac_i_8p_int[7][7], dac_q_8p_int[7][6], dac_i_8p_int[7][6],
+                               dac_q_8p_int[7][5], dac_i_8p_int[7][5], dac_q_8p_int[7][4], dac_i_8p_int[7][4],
+                               dac_q_8p_int[7][3], dac_i_8p_int[7][3], dac_q_8p_int[7][2], dac_i_8p_int[7][2],
+                               dac_q_8p_int[7][1], dac_i_8p_int[7][1], dac_q_8p_int[7][0], dac_i_8p_int[7][0]};
 
 endmodule : da_data_gen
 

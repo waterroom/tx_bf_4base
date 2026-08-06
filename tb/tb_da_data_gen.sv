@@ -23,10 +23,8 @@ module tb_da_data_gen;
     logic signed [DATA_W-1:0] bb_i [N_BEAM-1:0];
     logic signed [DATA_W-1:0] bb_q [N_BEAM-1:0];
     logic                     bb_valid [N_BEAM-1:0];
-    logic signed [DAC_W-1:0]  dac_i_8p [N_ELEM-1:0][INTERP-1:0];
-    logic signed [DAC_W-1:0]  dac_q_8p [N_ELEM-1:0][INTERP-1:0];
-    logic                     dac_valid [N_ELEM-1:0];
     logic                     rst_bf_request;
+    logic [INTERP*32-1:0]     s00_axis_0_tdata;
 
     localparam real CLK_PERIOD = 3.333;  // 300MHz
     always #(CLK_PERIOD/2) dac_coreclk = ~dac_coreclk;
@@ -45,7 +43,6 @@ module tb_da_data_gen;
         .s30_axis_0_tready(1'b1), .s32_axis_0_tready(1'b1),
         .cmd_clk(cmd_clk), .cmd_data(cmd_data), .cmd_data_valid(cmd_data_valid),
         .bb_i(bb_i), .bb_q(bb_q), .bb_valid(bb_valid),
-        .dac_i_8p(dac_i_8p), .dac_q_8p(dac_q_8p), .dac_valid(dac_valid),
         .rst_bf_request(rst_bf_request)
     );
 
@@ -93,9 +90,15 @@ module tb_da_data_gen;
     initial fout = $fopen("C:/workbuddy_chat/tx_bf_4base/sim_out/da_data_gen_dac.log", "w");
     logic capture_en = 0;
     always_ff @(posedge dac_coreclk) begin
-        if (capture_en && dac_valid[0]) begin
-            for (int p = 0; p < INTERP; p++)
-                $fdisplay(fout, "%d %d", dac_i_8p[0][p], dac_q_8p[0][p]);
+        if (capture_en) begin
+            // 从 AXI-Stream TDATA (s00=阵元0) 解包: 每 16bit 交替 {I,Q}
+            // tdata[16*2p]=I[p], tdata[16*2p+1]=Q[p]
+            for (int p = 0; p < INTERP; p++) begin
+                int i_val, q_val;
+                i_val = $signed(s00_axis_0_tdata[16*(2*p) +: 16]);
+                q_val = $signed(s00_axis_0_tdata[16*(2*p+1) +: 16]);
+                $fdisplay(fout, "%d %d", i_val, q_val);
+            end
         end
     end
 
