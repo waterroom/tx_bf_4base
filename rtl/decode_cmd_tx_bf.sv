@@ -3,7 +3,7 @@
 // =============================================================================
 // decode_cmd_tx_bf.sv  --  64b 并行报文配置解码器 (适配 tx_bf_4base)
 // =============================================================================
-// 参考: C:\prj\z669\...\decode_cmd_tx_bf.sv (复用 CDC FIFO + 11 状态 FSM + 帧协议)
+// Standard 64b packet protocol (CDC FIFO + 11-state FSM + frame)
 // 适配:
 //   - 2D 寄存器: delay/weight/FIR 按 beam×ch 索引 (idx=beam*8+ch, 0..31)
 //   - FIR 系数: 数据内嵌 tap_addr (data[7:4]), 立即加载 (不经 apply)

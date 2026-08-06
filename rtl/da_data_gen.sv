@@ -6,7 +6,7 @@
 // 两片 ZU48DR 各自独立运行一个 da_data_gen (8 元 4 波束), 合计 16 元。
 // 内部: reset_sync×2 (dac_clk + cmd_clk) + decode_cmd_tx_bf + tx_top(cfg端口)
 //
-// 端口参考: C:\prj\z669\...\da_data_gen.sv (简化: 去掉 VIO/ILA/DUC IP)
+// Ports aligned to external DA data path (no VIO/ILA/DUC IP)
 // =============================================================================
 
 `ifndef DA_DATA_GEN_SV
@@ -16,10 +16,7 @@ import tx_bf_pkg::*;
 module da_data_gen (
     input  logic                        dac_coreclk,    // 数据路径时钟 (= clk_300m)
     input  logic                        rst_dac,       // dac_coreclk 域异步复位 (高有效)
-    // 两片 ZU48DR 同步: 切换 DDS 频率时本片拉高 rst_bf_request 请求,
-    // 等待外部主控给两片同时拉高 rst_bf (同步), rst_bf 有效期间提交
-    // 新 DDS 频率 (phase_inc) 并复位数据路径, 实现两片同步切换
-    input  logic                        rst_bf,        // 两片同步复位门 (高有效)
+
 
     // 64b 并行报文配置接口 
     input  logic                        rst_cmd,  // cmd_clk 域异步复位 (高有效)
@@ -39,6 +36,10 @@ module da_data_gen (
 
     // apply 报文到达脉冲 (DDS 频率切换请求, 供外部主控触发两片同步)
     output logic                        rst_bf_request,
+        // 两片 ZU48DR 同步: 切换 DDS 频率时本片拉高 rst_bf_request 请求,
+    // 等待外部主控给两片同时拉高 rst_bf (同步), rst_bf 有效期间提交
+    // 新 DDS 频率 (phase_inc) 并复位数据路径, 实现两片同步切换
+    input  logic                        rst_bf,        // 两片同步复位门 (高有效)
 
     // ILA probe inputs (调试监控, 板级挂 ILA; 逻辑透传)
     input  wire                         dac0_nco_0_nco_update_busy,

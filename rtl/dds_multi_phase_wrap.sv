@@ -2,7 +2,6 @@
 // dds_multi_phase_wrap.sv — 8 相位 DDS 合成器 (基于 Xilinx DDS Compiler IP)
 // =============================================================================
 // 替代手写 dds_nco (LUT + $readmemh, 仿真易 X)。
-// 参考: C:\prj\z669\...\new\dds_core_multi_phase.v
 //   多相位累加 (每拍推进 N_PAR×freq) + 每相位例化一个 dds_core IP
 //   (s_axis_phase_tdata 64bit = {相位字[31:0], 频率字[31:0]};
 //    m_axis_data_tdata 32bit = {sin[15:0], cos[15:0]}, 有效 14bit)
