@@ -28,7 +28,9 @@ module decode_cmd_tx_bf #(
     parameter int unsigned MAX_DELAY_P  = MAX_DELAY,  // 64
     parameter int unsigned TAPS_P       = TAPS,       // 16
     parameter int unsigned COEF_W_P     = COEF_W,     // 16
-    parameter int unsigned DDS_PHASE_W_P= DDS_PHASE_W // 32
+    parameter int unsigned DDS_PHASE_W_P= DDS_PHASE_W, // 32
+    // 本片地址: 报文 Dest_id 匹配才解析 (两片 ZU48DR 各设不同值)
+    parameter logic [15:0] CHIP_ID = 16'h0001
 )(
     input  logic                                              da_clk,
     input  logic                                              rst_da_clk,
@@ -161,6 +163,7 @@ module decode_cmd_tx_bf #(
 
     reg [4:0]   main_st = IDLE;
     reg [31:0]  Function_id;
+    reg [15:0]  Dest_id;                    // 目的地址 (选片: 匹配 CHIP_ID 才处理)
     reg         main_st_is_MESSAGE_CONTENT;
     reg         main_st_is_PACKET_CHEKSUM;
 
@@ -183,10 +186,14 @@ module decode_cmd_tx_bf #(
                         main_st <= PACKET_FUNCTION;
                 end
                 PACKET_FUNCTION: begin
-                    if (da_data_valid_reg[2])
+                    if (da_data_valid_reg[2]) begin
                         Function_id <= da_data_reg[2][31:0];
-                    if (da_data_valid_reg[2])
-                        main_st <= PACKET_TIME;
+                        Dest_id     <= da_data_reg[2][63:48];
+                        if (da_data_reg[2][63:48] == CHIP_ID)
+                            main_st <= PACKET_TIME;   // 本片: 继续解析
+                        else
+                            main_st <= IDLE;          // 非本片: 丢弃整包, 等下一帧头
+                    end
                 end
                 PACKET_TIME: begin
                     if (da_data_valid_reg[2])

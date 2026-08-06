@@ -13,7 +13,10 @@
 `define DA_DATA_GEN_SV
 import tx_bf_pkg::*;
 
-module da_data_gen (
+module da_data_gen #(
+    // 本片地址: 报文 Dest_id 匹配才解析 (片0=0x0001, 片1=0x0002, 各综合一次)
+    parameter logic [15:0] CHIP_ID = 16'h0001
+)(
     input  logic                        dac_coreclk,    // 数据路径时钟 (= clk_300m)
     input  logic                        rst_dac,       // dac_coreclk 域异步复位 (高有效)
 
@@ -107,7 +110,7 @@ module da_data_gen (
     logic signed [COEF_W-1:0]       cfg_weight_im;
     logic                           cfg_apply_pulse;
 
-    decode_cmd_tx_bf u_decode (
+    decode_cmd_tx_bf #(.CHIP_ID(CHIP_ID)) u_decode (
         .da_clk          (dac_coreclk),
         .rst_da_clk      (rst_dac_sync),
         .cmd_clk         (cmd_clk),
