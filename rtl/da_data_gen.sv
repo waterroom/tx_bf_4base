@@ -18,10 +18,11 @@ module da_data_gen (
     // 顶层入口: 高有效异步复位, 按时钟域分两个输入, 各自同步一次,
     // 之后所有子模块 (decode/tx_top) 均接收同步高有效复位
     // (外部若为低有效复位源, 在 da_data_gen 外面取反接入)
-    input  logic                        arst_dac,       // dac_coreclk 域异步复位 (高有效)
-    input  logic                        arst_cmd,       // cmd_clk 域异步复位 (高有效)
+    input  logic                        rst_dac,       // dac_coreclk 域异步复位 (高有效)
+        
 
-    // 64b 并行报文配置接口
+    // 64b 并行报文配置接口 
+    input  logic                        rst_cmd,  // cmd_clk 域异步复位 (高有效)
     input  logic                        cmd_clk,
     input  logic [63:0]                 cmd_data,
     input  logic                        cmd_data_valid,
@@ -41,17 +42,17 @@ module da_data_gen (
 );
 
     // ---------- 顶层入口: 各时钟域异步复位各自同步一次 ----------
-    // 输出同步高有效 rst_dac/rst_cmd, 分发给内部所有子模块
-    logic rst_dac, rst_cmd;
+    // 端口 rst_dac/rst_cmd 为异步输入 (高有效), 同步后输出 rst_dac_sync/rst_cmd_sync
+    logic rst_dac_sync, rst_cmd_sync;
     reset_sync u_rst_dac (
         .clk         (dac_coreclk),
-        .arst        (arst_dac),
-        .rst         (rst_dac)
+        .arst        (rst_dac),
+        .rst         (rst_dac_sync)
     );
     reset_sync u_rst_cmd (
         .clk         (cmd_clk),
-        .arst        (arst_cmd),
-        .rst         (rst_cmd)
+        .arst        (rst_cmd),
+        .rst         (rst_cmd_sync)
     );
 
     // ---------- decode 输出 cfg_* ----------
@@ -70,9 +71,9 @@ module da_data_gen (
 
     decode_cmd_tx_bf u_decode (
         .da_clk          (dac_coreclk),
-        .rst_da_clk      (rst_dac),
+        .rst_da_clk      (rst_dac_sync),
         .cmd_clk         (cmd_clk),
-        .rst_cmd_clk     (rst_cmd),
+        .rst_cmd_clk     (rst_cmd_sync),
         .cmd_data        (cmd_data),
         .cmd_data_valid  (cmd_data_valid),
         .delay_val       (cfg_delay_val),
@@ -93,7 +94,7 @@ module da_data_gen (
     // ---------- tx_top (cfg_* 端口版, 同步高有效复位) ----------
     tx_top u_tx (
         .clk_300m         (dac_coreclk),
-        .rst              (rst_dac),
+        .rst              (rst_dac_sync),
         .bb_i             (bb_i),
         .bb_q             (bb_q),
         .bb_valid         (bb_valid),

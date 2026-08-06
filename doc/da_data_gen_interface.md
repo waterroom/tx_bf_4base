@@ -11,7 +11,8 @@
 | 方向 | 信号 | 位宽 | 说明 |
 |------|------|------|------|
 | in | `dac_coreclk` | 1 | 数据路径时钟 (300MHz) |
-| in | `arst` | 1 | **高有效**异步复位——**顶层入口**，模块内部按时钟域（dac/cmd）各同步一次，之后所有子模块均为同步高有效复位（若外部复位源为低有效，在 da_data_gen 外取反接入） |
+| in | `rst_dac` | 1 | **dac_coreclk 域**异步复位（高有效）——顶层入口，内部 reset_sync 同步一次 |
+| in | `rst_cmd` | 1 | **cmd_clk 域**异步复位（高有效）——顶层入口，内部 reset_sync 同步一次 |
 | in | `cmd_clk` | 1 | 命令时钟（异步于 dac_coreclk）|
 | in | `cmd_data` | 64 | 64b 并行报文 |
 | in | `cmd_data_valid` | 1 | 报文有效 |
