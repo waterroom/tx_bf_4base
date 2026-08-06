@@ -35,7 +35,7 @@ package tx_bf_pkg;
     // ---------- TTD 参数 (与参考仓库一致) ----------
     localparam int TAPS         = 16;    // 分数延时 FIR 抽头数
     localparam int COEF_W       = 16;    // FIR 系数 / 复数权重位宽
-    localparam int MAX_DELAY    = 64;    // 整数延时最大深度
+    localparam int MAX_DELAY    = 1024;   // 整数延时最大深度 (11bit, 可覆盖大阵列 TTD)
 
     // ---------- 标量类型 ----------
     typedef logic signed [DATA_W-1:0]       iq_t;        // 基带 IQ 一路
