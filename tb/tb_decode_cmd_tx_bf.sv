@@ -112,12 +112,15 @@ module tb_decode_cmd_tx_bf;
         rst_da_clk = 1; rst_cmd_clk = 1;
         repeat(10) @(posedge da_clk);
         rst_da_clk = 0; rst_cmd_clk = 0;
-        repeat(20) @(posedge da_clk);
+        // 等待 xpm_fifo_async 复位释放 (wr_rst_busy/rd_rst_busy 需数个时钟),
+        // 否则第一个报文的前几字会被 FIFO 丢弃 (帧头丢失 → FSM 不识别)
+        repeat(500) @(posedge da_clk);
 
         // ===== 用例 1: FIR 系数加载 (beam0/ch0/tap7=0x7FFF) =====
         $display("=== 用例 1: FIR 系数加载 ===");
         content_q = {};
-        content_q.push_back({32'h6702_0000, 32'h7FFF_0007}); // addr=0x6702+0, data={coef=0x7FFF, tap=7}
+        // data[31:16]=coef=0x7FFF, data[7:4]=tap=7 → data = 0x7FFF_0070
+        content_q.push_back({32'h6702_0000, 32'h7FFF_0070}); // addr=0x6702+0, tap=7
         send_packet(32'h0A0C_000B, content_q);
         // 等待 CDC + 流水 + 脉冲采样
         repeat(30) @(posedge da_clk);
