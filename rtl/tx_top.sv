@@ -9,7 +9,7 @@
 //     → 8× sum_4to1 (每阵元求 4 波束之和) → 8 路复数 I/Q (8并行 @300MHz)
 //     → 截位 16bit → 8 路 RF-DAC
 //
-// 内部: reset_sync + 4 beam_duc + 8 sum_4to1 + DAC 截位
+// 内部: 4 beam_duc + 8 sum_4to1 + DAC 截位 (复位为同步高有效 rst, 由顶层同步后提供)
 // =============================================================================
 
 `ifndef TX_TOP_SV
@@ -18,7 +18,7 @@ import tx_bf_pkg::*;
 
 module tx_top (
     input  logic                        clk_300m,      // 主时钟 300MHz
-    input  logic                        async_rst_n,   // 异步复位 (低有效)
+    input  logic                        rst,           // 同步高有效复位 (顶层已同步, 本模块不再内部同步)
 
     // 4 路基带复 IQ 输入 (300MHz)
     input  logic signed [DATA_W-1:0]    bb_i [N_BEAM-1:0],
@@ -45,14 +45,6 @@ module tx_top (
     output logic signed [DAC_W-1:0]     dac_q_8p [N_ELEM-1:0][INTERP-1:0],
     output logic                        dac_valid [N_ELEM-1:0]
 );
-
-    // ---------- 全局同步释放复位 ----------
-    logic rst;
-    reset_sync u_rst_sync (
-        .clk         (clk_300m),
-        .async_rst_n (async_rst_n),
-        .rst         (rst)
-    );
 
     // ---------- 4 个波束处理单元 ----------
     logic signed [MIXER_OUT_W-1:0] beam_i [N_BEAM-1:0][N_ELEM-1:0][INTERP-1:0];

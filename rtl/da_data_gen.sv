@@ -15,9 +15,9 @@ import tx_bf_pkg::*;
 
 module da_data_gen (
     input  logic                        dac_coreclk,    // 数据路径时钟 (= clk_300m)
-    // 分时钟域复位 (高有效同步复位, 由外部按各自时钟域产生)
-    input  logic                        rst_dac,        // dac_coreclk 域复位 (高有效)
-    input  logic                        rst_cmd,        // cmd_clk 域复位 (高有效)
+    // 顶层入口: 外部异步复位 (低有效), 本模块内部按时钟域各同步一次,
+    // 之后所有子模块 (decode/tx_top) 均接收同步高有效复位
+    input  logic                        async_rst_n,
 
     // 64b 并行报文配置接口
     input  logic                        cmd_clk,
@@ -38,10 +38,19 @@ module da_data_gen (
     output logic                        rst_bf_request
 );
 
-    // ---------- 复位: 外部按时钟域提供高有效同步复位 ----------
-    // dac 域: rst_dac 直接用 (decode rst_da_clk);
-    //         tx_top 内部是 async_rst_n(低有效)+reset_sync, 取反转换
-    // cmd 域: rst_cmd 直接用 (decode rst_cmd_clk)
+    // ---------- 顶层入口: 异步复位按时钟域各同步一次 ----------
+    // 输出同步高有效 rst_dac/rst_cmd, 分发给内部所有子模块
+    logic rst_dac, rst_cmd;
+    reset_sync u_rst_dac (
+        .clk         (dac_coreclk),
+        .async_rst_n (async_rst_n),
+        .rst         (rst_dac)
+    );
+    reset_sync u_rst_cmd (
+        .clk         (cmd_clk),
+        .async_rst_n (async_rst_n),
+        .rst         (rst_cmd)
+    );
 
     // ---------- decode 输出 cfg_* ----------
     logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val    [N_BEAM-1:0][N_ELEM-1:0];
@@ -79,11 +88,10 @@ module da_data_gen (
     );
     assign rst_bf_request = cfg_apply_pulse;
 
-    // ---------- tx_top (cfg_* 端口版) ----------
-    // tx_top 内部是 async_rst_n(低有效)+reset_sync, 由 rst_dac(高有效)取反
+    // ---------- tx_top (cfg_* 端口版, 同步高有效复位) ----------
     tx_top u_tx (
         .clk_300m         (dac_coreclk),
-        .async_rst_n      (~rst_dac),
+        .rst              (rst_dac),
         .bb_i             (bb_i),
         .bb_q             (bb_q),
         .bb_valid         (bb_valid),

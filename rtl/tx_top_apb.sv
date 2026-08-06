@@ -101,7 +101,7 @@ module tx_top_apb (
     // ---------- tx_top (cfg_* 端口版) ----------
     tx_top u_tx (
         .clk_300m         (clk_300m),
-        .async_rst_n      (async_rst_n),
+        .rst              (rst),
         .bb_i             (bb_i),
         .bb_q             (bb_q),
         .bb_valid         (bb_valid),

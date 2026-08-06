@@ -12,7 +12,7 @@ import tx_bf_pkg::*;
 module tb_da_data_gen;
 
     logic dac_coreclk = 0, cmd_clk = 0;
-    logic rst_dac = 1, rst_cmd = 1;   // 高有效复位
+    logic async_rst_n = 0;   // 顶层异步复位 (低有效, 内部同步)
     logic [63:0] cmd_data = 0;
     logic        cmd_data_valid = 0;
     logic signed [DATA_W-1:0] bb_i [N_BEAM-1:0];
@@ -29,7 +29,7 @@ module tb_da_data_gen;
 
     // DUT
     da_data_gen u_dut (
-        .dac_coreclk(dac_coreclk), .rst_dac(rst_dac), .rst_cmd(rst_cmd),
+        .dac_coreclk(dac_coreclk), .async_rst_n(async_rst_n),
         .cmd_clk(cmd_clk), .cmd_data(cmd_data), .cmd_data_valid(cmd_data_valid),
         .bb_i(bb_i), .bb_q(bb_q), .bb_valid(bb_valid),
         .dac_i_8p(dac_i_8p), .dac_q_8p(dac_q_8p), .dac_valid(dac_valid),
@@ -59,7 +59,7 @@ module tb_da_data_gen;
     localparam real bb_freq[4] = '{10e6, 30e6, 50e6, 70e6};
     real t;  // 唯一驱动源: 下方 always_ff (含复位初始化)
     always_ff @(posedge dac_coreclk) begin
-        if (rst_dac) begin
+        if (!async_rst_n) begin
             t <= 0;
             for (int b = 0; b < N_BEAM; b++) begin
                 bb_i[b] <= 0; bb_q[b] <= 0; bb_valid[b] <= 0;
@@ -91,9 +91,9 @@ module tb_da_data_gen;
         for (int b = 0; b < N_BEAM; b++) begin bb_i[b] = 0; bb_q[b] = 0; bb_valid[b] = 0; end
 
         // 复位
-        rst_dac = 1; rst_cmd = 1;   // 复位 (高有效)
+        async_rst_n = 0;   // 复位 (低有效)
         repeat(20) @(posedge dac_coreclk);
-        rst_dac = 0; rst_cmd = 0;   // 释放
+        async_rst_n = 1;   // 释放
         // 等待 decode 内 xpm_fifo_async 复位释放 (否则第一个报文前几字丢失)
         repeat(500) @(posedge dac_coreclk);
 
