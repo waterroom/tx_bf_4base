@@ -67,8 +67,9 @@ module tb_da_data_gen;
         end else begin
             t <= t + CLK_PERIOD * 1e-9;
             for (int b = 0; b < N_BEAM; b++) begin
-                bb_i[b] <= $sin(2*3.14159265*bb_freq[b]*t) * 1000;
-                bb_q[b] <= $cos(2*3.14159265*bb_freq[b]*t) * 1000;
+                // 与 tb_tx_top 一致的激励写法: 显式 integer + signed, 幅度 0.5*32767
+                bb_i[b] <= $signed(integer'(0.5 * 32767.0 * $cos(2.0 * 3.14159265 * bb_freq[b] * t)));
+                bb_q[b] <= $signed(integer'(0.5 * 32767.0 * $sin(2.0 * 3.14159265 * bb_freq[b] * t)));
                 bb_valid[b] <= 1;
             end
         end
@@ -104,11 +105,11 @@ module tb_da_data_gen;
         // data 格式: {coef[15:0], 12'b0, tap[3:0]} → tap=7 低 8 位 = 0x70
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
-                content_q.push_back({32'h6702_0000 + b*8 + c, 32'h4000_0070});
+                content_q.push_back({32'h6702_0000 + b*8 + c, 32'h7FFF_0070});
         // 权重 (beam0..3, ch0..7, re=0x4000, im=0)
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
-                content_q.push_back({32'h6703_0000 + b*8 + c, 32'h0000_4000});
+                content_q.push_back({32'h6703_0000 + b*8 + c, 32'h0000_7FFF});
         // phase_inc (beam0 = 200MHz → phase_inc = 200e6/2.4e9 * 2^32)
         content_q.push_back({32'h6705_0000, 32'h36BA2E8B}); // ≈200MHz
         content_q.push_back({32'h6706_0000, 32'h0000_0000}); // phase_offset=0
@@ -121,6 +122,16 @@ module tb_da_data_gen;
 
         // 等待配置生效 + 流水排空
         repeat(200) @(posedge dac_coreclk);
+        // [dbg] 配置诊断: decode 输出 + tx_bf_core 内部系数实际值
+        $display("[dbg] cfg: phase_inc[0]=%h weight_re=%h w_sel=%0d delay[0][0]=%0d",
+            u_dut.cfg_phase_inc[0], u_dut.cfg_weight_re, u_dut.cfg_weight_sel_ch, u_dut.cfg_delay_val[0][0]);
+        $display("[dbg] cfg: fir load0=%b sel=%0d addr=%0d data=%h",
+            u_dut.cfg_fir_load[0], u_dut.cfg_fir_sel_ch, u_dut.cfg_fir_coef_addr, u_dut.cfg_fir_coef_data);
+        $display("[dbg] tx_bf_core: fir coef[7] (b0c0)=%h coef[0]=%h w_re[0]=%h w_im[0]=%h",
+            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[7],
+            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.g_ch[0].u_fir.coef[0],
+            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.w_re[0],
+            u_dut.u_tx.g_beam[0].u_beam.u_bf_core.w_im[0]);
         $display("=== 开始采集 DAC 输出 ===");
         capture_en = 1;
 
