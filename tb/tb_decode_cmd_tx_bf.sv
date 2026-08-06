@@ -55,17 +55,25 @@ module tb_decode_cmd_tx_bf;
     logic [$clog2(N_ELEM)-1:0] fir_sel_ch_cap, weight_sel_ch_cap;
     logic [$clog2(TAPS)-1:0]   fir_addr_cap;
     logic signed [COEF_W-1:0]  fir_data_cap, weight_re_cap, weight_im_cap;
+    // unpacked array 归约需用循环 (| 不适用)
+    logic any_fir_load, any_weight_load;
+    always_comb begin
+        any_fir_load = 1'b0;
+        for (int b = 0; b < N_BEAM; b++) any_fir_load = any_fir_load | fir_coef_load[b];
+        any_weight_load = 1'b0;
+        for (int b = 0; b < N_BEAM; b++) any_weight_load = any_weight_load | weight_load[b];
+    end
     always_ff @(posedge da_clk) begin
         for (int b = 0; b < N_BEAM; b++) begin
             if (fir_coef_load[b])   fir_load_seen[b]   <= 1;
             if (weight_load[b])     weight_load_seen[b] <= 1;
         end
-        if (|fir_coef_load) begin
+        if (any_fir_load) begin
             fir_sel_ch_cap <= fir_sel_ch;
             fir_addr_cap   <= fir_coef_addr;
             fir_data_cap   <= fir_coef_data;
         end
-        if (|weight_load) begin
+        if (any_weight_load) begin
             weight_sel_ch_cap <= weight_sel_ch;
             weight_re_cap     <= weight_re;
             weight_im_cap     <= weight_im;
