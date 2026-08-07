@@ -43,8 +43,7 @@
 **帧头**：`0x7E8118E7`（32bit，在 [63:32]）
 **帧尾**：`0x8F9009F8`（32bit，在 [31:0]）
 **Function_id 门控（关键）**：只有 `Function_id == 0x0A0C_000B`（apply 报文）的**内容字才会被解析**（delay/FIR/weight/phase 全部在 MESSAGE_CONTENT 状态用 `Function_id_is_0A0C_000B` 门控）——其他 Function_id 报文的内容字**全部忽略**，不会写暂存、不会触发 FIR/weight 立即加载，防止其他功能报文误改 DBF 参数。
-- **delay 立即提交**（apply 帧尾即生效，不等 rst_bf）
-- **phase_inc/phase_offset 暂存**，等待两片同步门 `rst_bf` 上升沿统一提交（两片同拍切频率）
+- **delay / phase_inc / phase_offset 均 apply 帧尾统一提交**（两片各自收到 apply 即生效；两片同步由主控同时发报/协调实现，硬件不依赖 rst_bf 门控）
 
 ## 4. 寄存器映射
 
@@ -70,8 +69,8 @@
 | `0x6701_0000 + idx`  | 0..63      | delay_val[beam][ch] | [10:0]=delay (11bit, 0..1023)           | **apply 提交** |
 | `0x6702_0000 + idx`  | 0..63      | FIR coef[beam][ch]  | [19:16]=tap_addr, [15:0]=coef | **立即加载**   |
 | `0x6703_0000 + idx`  | 0..63      | weight[beam][ch]    | [31:16]=im, [15:0]=re        | **立即加载**   |
-| `0x6705_0000 + beam` | 0..3       | phase_inc[beam]     | [31:0]=phase_inc             | **apply 暂存 + rst_bf 提交** |
-| `0x6706_0000 + beam` | 0..3       | phase_offset[beam]  | [31:0]=phase_offset          | **apply 暂存 + rst_bf 提交** |
+| `0x6705_0000 + beam` | 0..3       | phase_inc[beam]     | [31:0]=phase_inc             | **apply 提交** |
+| `0x6706_0000 + beam` | 0..3       | phase_offset[beam]  | [31:0]=phase_offset          | **apply 提交** |
 
 > 注：表中 `[beam][ch]` 的 `ch` 为**全局通道号**（0..15）；本片内部实际使用 `ch_local = ch[2:0]`。
 
@@ -79,7 +78,7 @@
 
 - **立即加载**：FIR 系数和复数权重在报文命中地址码的当拍立即输出 load 脉冲，直接写入 tx_bf_core
 - **apply 提交（delay）**：delay 在报文 Function_id=0x0A0C_000B 且帧尾到达时立即提交（不等 rst_bf）
-- **apply 暂存 + rst_bf 提交（phase）**：phase_inc/phase_offset 先暂存，在两片同步门 `rst_bf` 上升沿统一提交（保证两片同拍切换 DDS 频率）
+- **apply 提交（phase）**：phase_inc/phase_offset 在报文 Function_id=0x0A0C_000B 且帧尾到达时统一提交（与 delay 同帧提交）
 
 ### 参数计算
 
@@ -136,9 +135,6 @@
 - 每片 ZU48DR 独立运行一个 `da_data_gen` 实例
 - 每片处理 8 阵元 × 4 波束，输出 8 路 DAC；两片合计 16 阵元 × 4 波束
 - 配置报文：主控对两片**广播同一份 16 元配置**（或各自发送），每片按 `CHIP_ID` 自动抽取自己的 8 元
-- **DDS 频率同步切换流程**（保证两片同拍换频）：
-  1. 主控发送 apply 报文（`0x6705/0x6706` 频率字）→ 两片各自暂存 + 拉高 `rst_bf_request`（请求）
-  2. 主控收到请求 → 给两片**同时**拉高 `rst_bf`（同步门）
-  3. 每片 `rst_bf` 上升沿（8 拍滤波后）→ 同拍提交新 phase_inc/phase_offset，并复位数据路径（流水清零）
-  4. `rst_bf` 拉低 → 两片以新频率同步恢复输出
-- **delay 不受同步门约束**：apply 帧尾即提交（可在任意时刻更新通道延时）
+- **配置提交**：delay / phase_inc / phase_offset 均在 apply 报文（Function_id=0x0A0C_000B）帧尾统一提交——两片各自收到报文即生效。两片同步由主控协调（同时发报或按 `rst_bf_request` 反馈后统一操作）
+- **`rst_bf` 同步复位（可选）**：主控可同时拉高两片 `rst_bf`（≥8 拍）→ 每片数据路径同步复位（流水清零），用于换频/换模式时两片同步清空数据路径
+- **`rst_bf_request`**：本片 apply 配置提交后的脉冲，供主控感知两片完成状态

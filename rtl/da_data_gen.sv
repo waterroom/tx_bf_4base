@@ -34,11 +34,10 @@ module da_data_gen #(
 
     // DAC 输出经 AXI-Stream TDATA (见下方 sXX_axis_0_tdata 打包)
 
-    // apply 报文到达脉冲 (DDS 频率切换请求, 供外部主控触发两片同步)
+    // apply 报文到达脉冲 (配置已提交, 供外部主控协调两片)
     output logic                        rst_bf_request,
-        // 两片 ZU48DR 同步: 切换 DDS 频率时本片拉高 rst_bf_request 请求,
-    // 等待外部主控给两片同时拉高 rst_bf (同步), rst_bf 有效期间提交
-    // 新 DDS 频率 (phase_inc) 并复位数据路径, 实现两片同步切换
+        // 两片 ZU48DR 同步: 本片收到 apply 报文并提交配置后拉高 rst_bf_request,
+    // 供外部主控协调两片 (可同时拉高两片 rst_bf 做数据路径同步复位)
     input  logic                        rst_bf,        // 两片同步复位门 (高有效)
 
     // ILA probe inputs (调试监控, 板级挂 ILA; 逻辑透传)
@@ -84,7 +83,8 @@ module da_data_gen #(
 
     // ---------- 两片同步: rst_bf 滤波 + 数据路径复位门 ----------
     // rst_bf (外部主控给两片同时拉高) 8 拍移位滤波防抖 (参考工程做法),
-    // 有效期间: 提交新 DDS 频率 (decode rst_bf 门) + 复位数据路径 (rst_tx)
+    // 有效期间: 复位数据路径 (rst_tx, 流水清零)。配置提交 (delay/phase/FIR/
+    // weight) 均由 decode 内 apply 报文帧尾触发, 不经 rst_bf。
     logic [7:0] rst_bf_reg;
     always_ff @(posedge dac_coreclk) begin
         if (rst_dac_sync) rst_bf_reg <= '0;
@@ -117,7 +117,6 @@ module da_data_gen #(
         .rst_cmd_clk     (rst_cmd_sync),
         .cmd_data        (cmd_data),
         .cmd_data_valid  (cmd_data_valid),
-        .rst_bf          (rst_bf_filt),   // 两片同步门: 有效时提交 delay/phase (DDS 频率)
         .delay_val       (cfg_delay_val),
         .phase_inc       (cfg_phase_inc),
         .phase_offset    (cfg_phase_offset),

@@ -5,7 +5,7 @@
 // =============================================================================
 // Standard 64b packet protocol (CDC FIFO + 11-state FSM + frame)
 // 适配:
-//   - 2D 寄存器: delay/weight/FIR 按 beam×ch 索引 (idx=beam*8+ch, 0..31)
+//   - 2D 寄存器: delay/weight/FIR 按 beam×ch 索引 (idx=beam*16+ch, 0..63)
 //   - FIR 系数: 数据内嵌 tap_addr (data[19:16]), 立即加载 (不经 apply)
 //   - 权重: 立即加载 (不经 apply)
 //   - delay/phase_inc/phase_offset: apply 提交 (Function_id=0x0A0C_000B)
@@ -38,9 +38,6 @@ module decode_cmd_tx_bf #(
     input  logic                                              rst_cmd_clk,
     input  logic [CMD_DATA_LEN-1:0]                           cmd_data,
     input  logic                                              cmd_data_valid,
-    // 两片同步门: rst_bf 上升沿时提交暂存的 delay/phase (DDS 频率),
-    // 保证两片 ZU48DR 同一时刻切换频率 (da_data_gen 滤波后提供, 高有效)
-    input  logic                                              rst_bf,
 
     // 每波束×通道整数延时 (apply 提交)
     output logic [$clog2(MAX_DELAY_P+1)-1:0]                  delay_val    [N_BEAM_P-1:0][N_CH_P-1:0],
@@ -235,24 +232,6 @@ module decode_cmd_tx_bf #(
     end
 
     // ========================================================================
-    // 5b. 两片同步提交门: rst_bf 上升沿 (da_clk 域)
-    // ========================================================================
-    // rst_bf (外部主控给两片同时拉高) 上升沿时, 提交暂存的 DDS 频率
-    // (phase_inc/phase_offset), 保证两片同拍切换频率。
-    // delay_val 不等待 rst_bf: apply 报文帧尾 (Function_id==0x0A0C_000B) 即提交;
-    // phase 由 rst_bf 同步门触发 (两片同步切频率)。
-    reg rst_bf_r, rst_bf_pulse;
-    always_ff @(posedge da_clk) begin
-        if (rst_da_clk) begin
-            rst_bf_r     <= 0;
-            rst_bf_pulse <= 0;
-        end else begin
-            rst_bf_r     <= rst_bf;
-            rst_bf_pulse <= rst_bf & (~rst_bf_r);   // 上升沿 1 拍
-        end
-    end
-
-    // ========================================================================
     // 6. 寄存器解析 (MESSAGE_CONTENT 状态, da_data_reg[2])
     //    地址码 = da_data_reg[2][63:32], 数据 = da_data_reg[2][31:0]
     //    16 元全局编址: idx = beam×16 + ch (beam∈0..3, ch∈0..15, idx∈0..63)
@@ -369,13 +348,14 @@ module decode_cmd_tx_bf #(
         end
     end
     // apply 提交
+    // apply 提交 (Function_id==0x0A0C_000B 帧尾即提交, 不等 rst_bf)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
                 phase_inc[b]    <= '0;
                 phase_offset[b] <= '0;
             end
-        end else if (rst_bf_pulse) begin
+        end else if (Function_id_is_0A0C_000B && main_st_is_PACKET_CHEKSUM) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
                 phase_inc[b]    <= phase_inc_temp[b];
                 phase_offset[b] <= phase_offset_temp[b];

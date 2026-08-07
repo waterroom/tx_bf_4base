@@ -134,12 +134,13 @@ module tb_da_data_gen;
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6701_0000 + b*16 + c, 32'h0000_0000});
 
-        send_packet(32'h0A0C_000B, content_q);  // apply (暂存 + rst_bf_request)
+        send_packet(32'h0A0C_000B, content_q);  // apply (delay/phase 帧尾即提交 + rst_bf_request)
 
-        // 模拟主控: 两片同步拉高 rst_bf (≥8 拍滤波) → 提交 DDS 频率 + 复位数据路径
+        // 模拟主控: 拉高 rst_bf (≥8 拍滤波) → 数据路径同步复位 (流水清零)
+        // 注: 配置提交不再依赖 rst_bf (apply 帧尾即提交), rst_bf 仅复位数据路径
         repeat(50) @(posedge dac_coreclk);   // 等 apply 报文处理完
         rst_bf = 1;
-        repeat(20) @(posedge dac_coreclk);   // >8 拍, 8 拍滤波通过 → 提交 phase_inc
+        repeat(20) @(posedge dac_coreclk);   // >8 拍滤波通过 → rst_tx 复位数据路径
         rst_bf = 0;
 
         // 等待配置生效 + 流水排空
