@@ -82,7 +82,8 @@ module tx_top_apb (
         .cfg_fir_coef_addr (cfg_fir_coef_addr),
         .cfg_fir_coef_data (cfg_fir_coef_data),
         .cfg_weight_load (cfg_weight_load),
-        .cfg_weight_sel_ch (cfg_weight_sel_ch)
+        .cfg_weight_sel_ch (cfg_weight_sel_ch),
+        .cfg_trunc       (4'd4)          // APB 路径固定默认截位 (右移 4)
     );
 
     // ---------- 权重数组 → 标量桥接 ----------

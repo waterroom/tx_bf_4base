@@ -137,6 +137,7 @@ module da_data_gen #(
     logic signed [COEF_W-1:0]       cfg_weight_re;
     logic signed [COEF_W-1:0]       cfg_weight_im;
     logic                           cfg_apply_pulse;
+    logic [3:0]                     cfg_trunc;      // DAC ΩÿŒª”““∆¡ø (decode 0x6704)
 
     decode_cmd_tx_bf #(.CHIP_ID(CHIP_ID)) u_decode (
         .da_clk          (dac_coreclk),
@@ -156,7 +157,8 @@ module da_data_gen #(
         .weight_sel_ch   (cfg_weight_sel_ch),
         .weight_re       (cfg_weight_re),
         .weight_im       (cfg_weight_im),
-        .cfg_apply_pulse (cfg_apply_pulse)
+        .cfg_apply_pulse (cfg_apply_pulse),
+        .tx_bf_trunc     (cfg_trunc)
     );
     assign rst_bf_request = cfg_apply_pulse;
 
@@ -183,6 +185,7 @@ module da_data_gen #(
         .cfg_weight_sel_ch(cfg_weight_sel_ch),
         .cfg_weight_re    (cfg_weight_re),
         .cfg_weight_im    (cfg_weight_im),
+        .cfg_trunc        (cfg_trunc),
         .dac_i_8p         (dac_i_8p_int),
         .dac_q_8p         (dac_q_8p_int),
         .dac_valid        (dac_valid_int)

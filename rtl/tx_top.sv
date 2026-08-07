@@ -39,6 +39,8 @@ module tx_top (
     input  logic [$clog2(N_ELEM)-1:0]      cfg_weight_sel_ch,
     input  logic signed [COEF_W-1:0]       cfg_weight_re,
     input  logic signed [COEF_W-1:0]       cfg_weight_im,
+    // DAC 截位右移量 (0-15, 默认 4 = SUM_OUT_W-DAC_W; decode 0x6704 配置)
+    input  logic [3:0]                     cfg_trunc,
 
     // 8 路 RF-DAC 输出 (复数 I/Q, 8 并行 @300MHz = 2.4Gs/s)
     output logic signed [DAC_W-1:0]     dac_i_8p [N_ELEM-1:0][INTERP-1:0],
@@ -126,7 +128,14 @@ module tx_top (
         end
     endgenerate
 
-    // ---------- DAC 输出截位 (20bit → 16bit, 保符号截高位) ----------
+    // ---------- DAC 输出截位 (20bit → 16bit, 可配置右移量 + 饱和) ----------
+    // 截位右移量 cfg_trunc (0-15, 默认 4): sum >>> cfg_trunc 后饱和到 DAC_W。
+    // cfg_trunc=0 时无右移 (输出可能饱和), 通常 4 匹配原固定行为。
+    function automatic logic signed [DAC_W-1:0] dac_sat(input logic signed [SUM_OUT_W-1:0] v);
+        if (v >  ((1 <<< (DAC_W-1)) - 1)) return  ((1 <<< (DAC_W-1)) - 1);
+        else if (v < -(1 <<< (DAC_W-1)))  return -(1 <<< (DAC_W-1));
+        else return v[DAC_W-1:0];
+    endfunction
     genvar d;
     generate
         for (d = 0; d < N_ELEM; d++) begin : g_dac
@@ -139,8 +148,8 @@ module tx_top (
                     dac_valid[d] <= 1'b0;
                 end else begin
                     for (int p = 0; p < INTERP; p++) begin
-                        dac_i_8p[d][p] <= sum_i[d][p][SUM_OUT_W-1 : SUM_OUT_W-DAC_W];
-                        dac_q_8p[d][p] <= sum_q[d][p][SUM_OUT_W-1 : SUM_OUT_W-DAC_W];
+                        dac_i_8p[d][p] <= dac_sat(sum_i[d][p] >>> cfg_trunc);
+                        dac_q_8p[d][p] <= dac_sat(sum_q[d][p] >>> cfg_trunc);
                     end
                     dac_valid[d] <= sum_valid[d];
                 end

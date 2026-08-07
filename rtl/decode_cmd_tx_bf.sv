@@ -9,7 +9,7 @@
 //   - FIR 系数: 数据内嵌 tap_addr (data[19:16]), 立即加载 (不经 apply)
 //   - 权重: 立即加载 (不经 apply)
 //   - delay/phase_inc/phase_offset: apply 提交 (Function_id=0x0A0C_000B)
-//   - 新增 phase_offset (0x6706), 删除 tx_bf_trunc (0x6704)
+//   - 新增 phase_offset (0x6706), tx_bf_trunc (0x6704, DAC 截位右移量)
 //   - phase_inc/offset 每波束独立 (0x6705/06 + beam)
 //
 // 报文格式: 64b 并行, 帧头 0x7E8118E7, 帧尾 0x8F9009F8
@@ -55,7 +55,9 @@ module decode_cmd_tx_bf #(
     output logic signed [COEF_W_P-1:0]                        weight_re,
     output logic signed [COEF_W_P-1:0]                        weight_im,
     // apply 脉冲 (报文 Function_id=0x0A0C_000B 命中时 1 拍)
-    output logic                                              cfg_apply_pulse
+    output logic                                              cfg_apply_pulse,
+    // DAC 截位右移量 (0x6704, 默认 4 = SUM_OUT_W-DAC_W, 立即生效)
+    output logic [3:0]                                        tx_bf_trunc
 );
 
     genvar i;
@@ -246,6 +248,7 @@ module decode_cmd_tx_bf #(
     wire is_0x6701 = (msg_base == 16'h6701);
     wire is_0x6702 = (msg_base == 16'h6702);
     wire is_0x6703 = (msg_base == 16'h6703);
+    wire is_0x6704 = (msg_base == 16'h6704);
     wire is_0x6705 = (msg_base == 16'h6705);
     wire is_0x6706 = (msg_base == 16'h6706);
     // 地址拆片: 本片才处理 (片0: ch∈0..7, 片1: ch∈8..15)
@@ -267,13 +270,13 @@ module decode_cmd_tx_bf #(
                     delay_val_temp[b][ch_sel] <= da_data_reg[2][$clog2(MAX_DELAY_P+1)-1:0];
         end
     end
-    // apply 提交 (Function_id==0x0A0C_000B 帧尾即提交, 不等 rst_bf)
+    // apply 提交 (Function_id==0x0A0C_000B 门控即提交, 不判帧尾状态)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= '0;
-        end else if (Function_id_is_0A0C_000B && main_st_is_PACKET_CHEKSUM) begin
+        end else if (Function_id_is_0A0C_000B) begin   // Function_id 门控即提交, 不判帧尾
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= delay_val_temp[b][c];
@@ -348,14 +351,14 @@ module decode_cmd_tx_bf #(
         end
     end
     // apply 提交
-    // apply 提交 (Function_id==0x0A0C_000B 帧尾即提交, 不等 rst_bf)
+    // apply 提交 (Function_id==0x0A0C_000B 门控即提交, 不判帧尾状态)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
                 phase_inc[b]    <= '0;
                 phase_offset[b] <= '0;
             end
-        end else if (Function_id_is_0A0C_000B && main_st_is_PACKET_CHEKSUM) begin
+        end else if (Function_id_is_0A0C_000B) begin   // Function_id 门控即提交, 不判帧尾
             for (int b = 0; b < N_BEAM_P; b++) begin
                 phase_inc[b]    <= phase_inc_temp[b];
                 phase_offset[b] <= phase_offset_temp[b];
@@ -363,12 +366,24 @@ module decode_cmd_tx_bf #(
         end
     end
 
-    // ---- 6e. apply 脉冲 ----
+    // ---- 6e. tx_bf_trunc (DAC 截位右移量, 0x6704, 立即生效) ----
     always_ff @(posedge da_clk) begin
         if (rst_da_clk)
+            tx_bf_trunc <= 4'd4;   // 默认右移 4 (SUM_OUT_W-DAC_W)
+        else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6704)
+            tx_bf_trunc <= da_data_reg[2][3:0];
+    end
+
+    // ---- 6f. apply 脉冲 (Function_id 匹配上升沿 1 拍, 不判帧尾) ----
+    reg Function_id_is_0A0C_000B_r;
+    always_ff @(posedge da_clk) begin
+        if (rst_da_clk) begin
+            Function_id_is_0A0C_000B_r <= 0;
             cfg_apply_pulse <= 0;
-        else
-            cfg_apply_pulse <= Function_id_is_0A0C_000B && main_st_is_PACKET_CHEKSUM;
+        end else begin
+            Function_id_is_0A0C_000B_r <= Function_id_is_0A0C_000B;
+            cfg_apply_pulse <= Function_id_is_0A0C_000B & ~Function_id_is_0A0C_000B_r;
+        end
     end
 
 endmodule : decode_cmd_tx_bf

@@ -28,6 +28,7 @@ module tb_decode_cmd_tx_bf;
     logic [$clog2(N_ELEM)-1:0]      weight_sel_ch;
     logic signed [COEF_W-1:0]       weight_re;
     logic signed [COEF_W-1:0]       weight_im;
+    logic [3:0]                     tx_bf_trunc;    // DAC 截位右移量 (0x6704)
     logic                           cfg_apply_pulse;
 
     // 时钟
@@ -46,7 +47,8 @@ module tb_decode_cmd_tx_bf;
         .fir_coef_addr(fir_coef_addr), .fir_coef_data(fir_coef_data),
         .weight_load(weight_load), .weight_sel_ch(weight_sel_ch),
         .weight_re(weight_re), .weight_im(weight_im),
-        .cfg_apply_pulse(cfg_apply_pulse)
+        .cfg_apply_pulse(cfg_apply_pulse),
+        .tx_bf_trunc(tx_bf_trunc)
     );
 
     // ---------- load 脉冲采样 (1 拍脉冲需捕获, 电平检查会错过) ----------
@@ -210,6 +212,17 @@ module tb_decode_cmd_tx_bf;
             errors++;
         end else $display("  PASS");
         repeat(5) @(posedge da_clk);
+
+        // ===== 用例 6: DAC 截位寄存器 (0x6704, 立即生效) =====
+        $display("=== 用例 6: 截位寄存器 0x6704 ===");
+        content_q = {};
+        content_q.push_back({32'h6704_0000, 32'h0000_0006}); // tx_bf_trunc = 6 (右移 6)
+        send_packet(32'h0A0C_000B, content_q);  // apply (trunc 立即生效, 不判帧尾)
+        repeat(30) @(posedge da_clk);
+        if (tx_bf_trunc !== 4'd6) begin
+            $display("  FAIL: tx_bf_trunc=%0d (应 6)", tx_bf_trunc);
+            errors++;
+        end else $display("  PASS");
 
         // ===== 结论 =====
         if (errors == 0) $display("\n=== ALL PASS ===");

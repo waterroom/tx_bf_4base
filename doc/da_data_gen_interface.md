@@ -43,7 +43,7 @@
 **帧头**：`0x7E8118E7`（32bit，在 [63:32]）
 **帧尾**：`0x8F9009F8`（32bit，在 [31:0]）
 **Function_id 门控（关键）**：只有 `Function_id == 0x0A0C_000B`（apply 报文）的**内容字才会被解析**（delay/FIR/weight/phase 全部在 MESSAGE_CONTENT 状态用 `Function_id_is_0A0C_000B` 门控）——其他 Function_id 报文的内容字**全部忽略**，不会写暂存、不会触发 FIR/weight 立即加载，防止其他功能报文误改 DBF 参数。
-- **delay / phase_inc / phase_offset 均 apply 帧尾统一提交**（两片各自收到 apply 即生效；两片同步由主控同时发报/协调实现，硬件不依赖 rst_bf 门控）
+- **delay / phase_inc / phase_offset 由 apply（Function_id 门控）提交**——不判帧尾状态（PACKET_CHEKSUM），Function_id 匹配即持续提交暂存值；两片同步由主控协调
 
 ## 4. 寄存器映射
 
@@ -69,6 +69,7 @@
 | `0x6701_0000 + idx`  | 0..63      | delay_val[beam][ch] | [10:0]=delay (11bit, 0..1023)           | **apply 提交** |
 | `0x6702_0000 + idx`  | 0..63      | FIR coef[beam][ch]  | [19:16]=tap_addr, [15:0]=coef | **立即加载**   |
 | `0x6703_0000 + idx`  | 0..63      | weight[beam][ch]    | [31:16]=im, [15:0]=re        | **立即加载**   |
+| `0x6704_0000`        | —          | DAC 截位右移量       | [3:0]=trunc (0..15, 默认 4)   | **立即生效**   |
 | `0x6705_0000 + beam` | 0..3       | phase_inc[beam]     | [31:0]=phase_inc             | **apply 提交** |
 | `0x6706_0000 + beam` | 0..3       | phase_offset[beam]  | [31:0]=phase_offset          | **apply 提交** |
 
@@ -77,8 +78,8 @@
 ### 动作说明
 
 - **立即加载**：FIR 系数和复数权重在报文命中地址码的当拍立即输出 load 脉冲，直接写入 tx_bf_core
-- **apply 提交（delay）**：delay 在报文 Function_id=0x0A0C_000B 且帧尾到达时立即提交（不等 rst_bf）
-- **apply 提交（phase）**：phase_inc/phase_offset 在报文 Function_id=0x0A0C_000B 且帧尾到达时统一提交（与 delay 同帧提交）
+- **apply 提交（delay/phase）**：Function_id=0x0A0C_000B 门控即提交暂存值（不判帧尾状态）
+- **立即生效（trunc）**：DAC 截位右移量 0x6704 命中即生效（0-15，默认 4，控制 DAC 输出右移位数 + 饱和截断）
 
 ### 参数计算
 
