@@ -138,13 +138,10 @@ module decode_cmd_tx_bf #(
 
     // ========================================================================
     // 3. 帧头/帧尾检测
+    //    用 da_data_reg[2] 组合比较 (与 da_data_valid_reg[2] 同拍, 消除错拍):
+    //    早期实现从 da_data(0级) 寄存 1 拍, 与 reg[2](2级) 错开一拍,
+    //    FIFO 连续输出时帧头判断的是下一字 → FSM 卡死
     // ========================================================================
-    reg da_data_63to32_is_7e8118e7;
-    reg da_data_31to00_is_8f9009f8;
-    always_ff @(posedge da_clk) begin
-        da_data_63to32_is_7e8118e7 <= (da_data[63:32] == 32'h7E8118E7);
-        da_data_31to00_is_8f9009f8 <= (da_data[31:00] == 32'h8F9009F8);
-    end
 
     // ========================================================================
     // 4. 11 状态 FSM
@@ -181,7 +178,7 @@ module decode_cmd_tx_bf #(
                 PACKET_HEAD: begin
                     main_st_is_MESSAGE_CONTENT <= 0;
                     main_st_is_PACKET_CHEKSUM  <= 0;
-                    if (da_data_valid_reg[2] && da_data_63to32_is_7e8118e7)
+                    if (da_data_valid_reg[2] && (da_data_reg[2][63:32] == 32'h7E8118E7))
                         main_st <= PACKET_FUNCTION;
                 end
                 PACKET_FUNCTION: begin
@@ -210,7 +207,7 @@ module decode_cmd_tx_bf #(
                 end
                 MESSAGE_CONTENT: begin
                     if (da_data_valid_reg[2]) begin
-                        if (da_data_31to00_is_8f9009f8) begin
+                        if (da_data_reg[2][31:00] == 32'h8F9009F8) begin
                             main_st <= PACKET_CHEKSUM;
                             main_st_is_MESSAGE_CONTENT <= 0;
                             main_st_is_PACKET_CHEKSUM  <= 1;
