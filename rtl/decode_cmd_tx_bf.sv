@@ -285,7 +285,7 @@ module decode_cmd_tx_bf #(
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val_temp[b][c] <= '0;
-        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6701 && match_chip) begin
+        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6701 && match_chip) begin
             for (int b = 0; b < N_BEAM_P; b++)
                 if (beam_sel == b)
                     delay_val_temp[b][ch_sel] <= da_data_reg[2][$clog2(MAX_DELAY_P+1)-1:0];
@@ -316,7 +316,7 @@ module decode_cmd_tx_bf #(
             // 默认清零
             for (int b = 0; b < N_BEAM_P; b++) fir_coef_load[b] <= 0;
             // 命中 0x6702 时立即加载
-            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6702 && match_chip) begin
+            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6702 && match_chip) begin
                 for (int b = 0; b < N_BEAM_P; b++) begin
                     if (beam_sel == b) begin
                         fir_coef_load[b] <= 1;
@@ -339,7 +339,7 @@ module decode_cmd_tx_bf #(
             weight_im     <= 0;
         end else begin
             for (int b = 0; b < N_BEAM_P; b++) weight_load[b] <= 0;
-            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && is_0x6703 && match_chip) begin
+            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6703 && match_chip) begin
                 for (int b = 0; b < N_BEAM_P; b++) begin
                     if (beam_sel == b) begin
                         weight_load[b]  <= 1;
@@ -362,7 +362,7 @@ module decode_cmd_tx_bf #(
                 phase_inc_temp[b]    <= '0;
                 phase_offset_temp[b] <= '0;
             end
-        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT) begin
+        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
                 if (is_0x6705 && msg_idx == b)
                     phase_inc_temp[b] <= da_data_reg[2][31:0];

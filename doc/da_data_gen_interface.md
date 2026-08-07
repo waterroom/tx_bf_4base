@@ -42,8 +42,8 @@
 
 **帧头**：`0x7E8118E7`（32bit，在 [63:32]）
 **帧尾**：`0x8F9009F8`（32bit，在 [31:0]）
-**apply 门**：`Function_id == 0x0A0C_000B` 时——
-- **delay 立即提交**（帧尾即生效，不等 rst_bf）
+**Function_id 门控（关键）**：只有 `Function_id == 0x0A0C_000B`（apply 报文）的**内容字才会被解析**（delay/FIR/weight/phase 全部在 MESSAGE_CONTENT 状态用 `Function_id_is_0A0C_000B` 门控）——其他 Function_id 报文的内容字**全部忽略**，不会写暂存、不会触发 FIR/weight 立即加载，防止其他功能报文误改 DBF 参数。
+- **delay 立即提交**（apply 帧尾即生效，不等 rst_bf）
 - **phase_inc/phase_offset 暂存**，等待两片同步门 `rst_bf` 上升沿统一提交（两片同拍切频率）
 
 ## 4. 寄存器映射

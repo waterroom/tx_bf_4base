@@ -81,6 +81,12 @@ module tb_decode_cmd_tx_bf;
             weight_im_cap     <= weight_im;
         end
     end
+    // load 事件计数器 (区分"触发了但 sel_ch 相同"与"未触发")
+    int fir_load_cnt = 0, weight_load_cnt = 0;
+    always_ff @(posedge da_clk) begin
+        if (any_fir_load)    fir_load_cnt    <= fir_load_cnt + 1;
+        if (any_weight_load) weight_load_cnt <= weight_load_cnt + 1;
+    end
 
     // ---------- 报文生成器 ----------
     task automatic send_packet(input [31:0] function_id, input logic [63:0] content_q[$]);
@@ -163,16 +169,43 @@ module tb_decode_cmd_tx_bf;
             errors++;
         end else $display("  PASS");
 
-        // ===== 用例 4: 非 apply 报文不提交 delay/phase =====
+        // ===== 用例 4: 非 apply 报文不提交 delay/phase, 且不触发任何寄存器写入 =====
         $display("=== 用例 4: 非 apply 报文不提交 ===");
         content_q = {};
-        content_q.push_back({32'h6701_0000, 32'h0000_0063}); // delay[0][0]=99 (应不提交)
+        content_q.push_back({32'h6701_0000, 32'h0000_0063}); // delay[0][0]=99 (应不暂存/提交)
+        content_q.push_back({32'h6702_0000, 32'h0007_7FFF}); // FIR 应不加载 (非 apply)
+        content_q.push_back({32'h6703_0025, 32'h8000_4000}); // weight 应不加载 (非 apply)
+        content_q.push_back({32'h6705_0000, 32'hFFFF_FFFF}); // phase 应不暂存
         send_packet(32'h0000_0000, content_q);  // 非 apply
         repeat(40) @(posedge da_clk);
         if (delay_val[0][0] !== 10) begin  // 应仍为 10 (用例 3 的值)
             $display("  FAIL: delay[0][0]=%0d (应保持 10)", delay_val[0][0]);
             errors++;
-        end else $display("  PASS");
+        end
+        // FIR/weight load 计数应不变 (用例1: 1, 用例2: 1)
+        if (fir_load_cnt !== 1 || weight_load_cnt !== 1) begin
+            $display("  FAIL: 非 apply 报文触发了 FIR/weight load (fir=%0d weight=%0d, 应 1/1)", fir_load_cnt, weight_load_cnt);
+            errors++;
+        end
+        // phase/delay 暂存不应被污染: 发"空 apply"提交当前 temp,
+        // 若非 apply 曾污染 temp, 提交后 delay/phase 会变成污染值
+        content_q = {};
+        send_packet(32'h0A0C_000B, content_q);  // 空 apply: 只触发提交, 无新数据
+        repeat(10) @(posedge da_clk);
+        rst_bf = 1;
+        repeat(20) @(posedge da_clk);
+        rst_bf = 0;
+        repeat(10) @(posedge da_clk);
+        if (phase_inc[0] !== 32'h12345678) begin  // 应仍为用例 3 的值
+            $display("  FAIL: phase_inc[0]=%h (非 apply 污染了暂存)", phase_inc[0]);
+            errors++;
+        end
+        if (delay_val[0][0] !== 10) begin  // 空 apply 提交后应仍为 10
+            $display("  FAIL: delay[0][0]=%0d (非 apply 污染了暂存)", delay_val[0][0]);
+            errors++;
+        end
+        if (delay_val[0][0] === 10 && fir_load_cnt === 1 && weight_load_cnt === 1 && phase_inc[0] === 32'h12345678)
+            $display("  PASS");
 
         // ===== 用例 5: 片 1 (ch∈8..15) 条目应被忽略 (CHIP_ID=0) =====
         $display("=== 用例 5: 片 1 条目忽略 ===");
