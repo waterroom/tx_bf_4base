@@ -73,15 +73,12 @@ module tx_bf_core #(
     // ----------------------------------------------------------------
     // 复数权重寄存器（每通道一对）
     // ----------------------------------------------------------------
-    logic signed [COEF_W-1:0] w_re [N_CH-1:0];
-    logic signed [COEF_W-1:0] w_im [N_CH-1:0];
+    // 配置寄存器 (权重): 声明初始化, 不随数据路径复位清空
+    // (rst_bf/数据路径复位只清流水, 权重配置在复位中保留)
+    logic signed [COEF_W-1:0] w_re [N_CH-1:0] = '{default: '0};
+    logic signed [COEF_W-1:0] w_im [N_CH-1:0] = '{default: '0};
     always_ff @(posedge clk) begin
-        if (rst) begin
-            for (int k = 0; k < N_CH; k++) begin
-                w_re[k] <= '0;
-                w_im[k] <= '0;
-            end
-        end else if (weight_load) begin
+        if (weight_load) begin
             w_re[weight_sel_ch] <= weight_re;
             w_im[weight_sel_ch] <= weight_im;
         end

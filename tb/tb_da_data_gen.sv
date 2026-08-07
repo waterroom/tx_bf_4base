@@ -43,6 +43,7 @@ module tb_da_data_gen;
         .s30_axis_0_tready(1'b1), .s32_axis_0_tready(1'b1),
         .cmd_clk(cmd_clk), .cmd_data(cmd_data), .cmd_data_valid(cmd_data_valid),
         .bb_i(bb_i), .bb_q(bb_q), .bb_valid(bb_valid),
+        .s00_axis_0_tdata(s00_axis_0_tdata),
         .rst_bf_request(rst_bf_request)
     );
 

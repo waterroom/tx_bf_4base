@@ -90,12 +90,11 @@ module frac_delay_fir #(
     // 实际数据寄存级数（移位线之后）：mult(1) + tree(4) + bias(1) + sat(1) = 7, +S1 = 8
     localparam int unsigned DATA_PIPE_STAGES = 7 + USE_INREG;
 
-    // -------------- 系数寄存器（动态加载） --------------
-    logic signed [COEF_W-1:0] coef [0:TAPS-1];
+    // -------------- 系数寄存器（动态加载, 声明初始化, 不复位清空） --------------
+    // 系数是配置, 数据路径复位 (rst_bf) 只清流水, 系数在复位中保留
+    logic signed [COEF_W-1:0] coef [0:TAPS-1] = '{default: '0};
     always_ff @(posedge clk) begin
-        if (rst) begin
-            for (int i = 0; i < TAPS; i++) coef[i] <= '0;
-        end else if (coef_load) begin
+        if (coef_load) begin
             coef[coef_addr] <= coef_data;
         end
     end
