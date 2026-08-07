@@ -81,13 +81,17 @@ module da_data_gen #(
         .rst         (rst_cmd_sync)
     );
 
-    // ---------- 两片同步: rst_bf 滤波 + 数据路径复位脉冲 ----------
+    // ---------- 两片同步: rst_bf 滤波 + 数据路径定时复位 ----------
     // rst_bf (外部主控给两片同时拉高) 8 拍移位滤波防抖 (参考工程做法),
-    // 滤波输出上升沿 → 1 拍复位脉冲 (rst_tx), 数据路径流水清零一拍后恢复。
-    // 用脉冲而非电平: 电平复位会让数据路径在 rst_bf 拉高期间持续停摆,
-    // 脉冲复位只停 1 拍, 两片各复位一拍后即同步恢复输出。
+    // 滤波输出上升沿触发 RST_BF_WIDTH 拍的定时复位 (rst_tx)。
+    // 1 拍复位不够: 数据路径流水总 latency ~50-60 拍 (DDS ~8 + 混频 2 +
+    // 3 级半带 FIR 每级 ~10-15 + 求和 2), 复位窗口必须覆盖内部流水
+    // 排空, 否则复位释放后 latency 拍内输出仍是旧配置的过渡态。
+    // 定时复位 (非电平): 主控只需拉高 ≥8 拍触发一次, 复位宽度硬件保证;
+    // 两片各自复位 RST_BF_WIDTH 拍后同步恢复。
     // 配置提交 (delay/phase/FIR/weight) 均由 decode 内 apply 报文帧尾触发,
     // 不经 rst_bf。
+    localparam int RST_BF_WIDTH = 64;   // ≥ 数据路径总 latency, 可调
     logic [7:0] rst_bf_reg;
     always_ff @(posedge dac_coreclk) begin
         if (rst_dac_sync) rst_bf_reg <= '0;
@@ -95,16 +99,30 @@ module da_data_gen #(
     end
     logic rst_bf_filt;
     assign rst_bf_filt = |rst_bf_reg;   // rst_bf 持续 8 拍以上视为有效
-    // 滤波输出上升沿 → 1 拍脉冲
+    // 滤波输出上升沿 → 1 拍触发脉冲
     logic rst_bf_filt_r, rst_bf_pulse;
     always_ff @(posedge dac_coreclk) begin
         if (rst_dac_sync) rst_bf_filt_r <= 0;
         else              rst_bf_filt_r <= rst_bf_filt;
     end
     assign rst_bf_pulse = rst_bf_filt & ~rst_bf_filt_r;
-    // 数据路径复位: 上电复位 OR rst_bf 同步复位脉冲 (两片同步切频)
+    // 数据路径复位: 上电复位 OR rst_bf 触发定时复位 (RST_BF_WIDTH 拍)
+    logic [$clog2(RST_BF_WIDTH)-1:0] rst_bf_cnt;
     logic rst_tx;
-    assign rst_tx = rst_dac_sync | rst_bf_pulse;
+    always_ff @(posedge dac_coreclk) begin
+        if (rst_dac_sync) begin
+            rst_bf_cnt <= '0;
+            rst_tx     <= 1;
+        end else if (rst_bf_pulse) begin
+            rst_bf_cnt <= RST_BF_WIDTH - 1;   // 触发: 复位 RST_BF_WIDTH 拍
+            rst_tx     <= 1;
+        end else if (rst_bf_cnt != '0) begin
+            rst_bf_cnt <= rst_bf_cnt - 1;     // 保持复位, 倒计时
+            rst_tx     <= 1;
+        end else begin
+            rst_tx <= 0;
+        end
+    end
 
     // ---------- decode 输出 cfg_* ----------
     logic [$clog2(MAX_DELAY+1)-1:0] cfg_delay_val    [N_BEAM-1:0][N_ELEM-1:0];
