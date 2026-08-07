@@ -6,7 +6,7 @@
 // Standard 64b packet protocol (CDC FIFO + 11-state FSM + frame)
 // 适配:
 //   - 2D 寄存器: delay/weight/FIR 按 beam×ch 索引 (idx=beam*8+ch, 0..31)
-//   - FIR 系数: 数据内嵌 tap_addr (data[7:4]), 立即加载 (不经 apply)
+//   - FIR 系数: 数据内嵌 tap_addr (data[19:16]), 立即加载 (不经 apply)
 //   - 权重: 立即加载 (不经 apply)
 //   - delay/phase_inc/phase_offset: apply 提交 (Function_id=0x0A0C_000B)
 //   - 新增 phase_offset (0x6706), 删除 tx_bf_trunc (0x6704)
@@ -305,7 +305,7 @@ module decode_cmd_tx_bf #(
     end
 
     // ---- 6b. FIR 系数 (立即加载, 数据内嵌 tap_addr) ----
-    // data[31:16]=coef, [7:4]=tap_addr, idx=beam*16+ch (全局 16 元)
+    // data[19:16]=tap_addr, [15:0]=coef, idx=beam*16+ch (全局 16 元)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++) fir_coef_load[b] <= 0;
@@ -321,8 +321,8 @@ module decode_cmd_tx_bf #(
                     if (beam_sel == b) begin
                         fir_coef_load[b] <= 1;
                         fir_sel_ch    <= ch_sel;
-                        fir_coef_addr <= da_data_reg[2][7:4];
-                        fir_coef_data <= da_data_reg[2][31:16];
+                        fir_coef_addr <= da_data_reg[2][19:16];
+                        fir_coef_data <= da_data_reg[2][15:0];
                     end
                 end
             end

@@ -121,8 +121,8 @@ module tb_decode_cmd_tx_bf;
         // ===== 用例 1: FIR 系数加载 (beam0/ch0/tap7=0x7FFF) =====
         $display("=== 用例 1: FIR 系数加载 ===");
         content_q = {};
-        // data[31:16]=coef=0x7FFF, data[7:4]=tap=7 → data = 0x7FFF_0070
-        content_q.push_back({32'h6702_0000, 32'h7FFF_0070}); // addr=0x6702+0, tap=7
+        // data[19:16]=tap=7, data[15:0]=coef=0x7FFF → data = 0x0007_7FFF
+        content_q.push_back({32'h6702_0000, 32'h0007_7FFF}); // addr=0x6702+0, tap=7
         send_packet(32'h0A0C_000B, content_q);
         // 等待 CDC + 流水 + 脉冲采样
         repeat(30) @(posedge da_clk);
@@ -177,7 +177,7 @@ module tb_decode_cmd_tx_bf;
         // ===== 用例 5: 片 1 (ch∈8..15) 条目应被忽略 (CHIP_ID=0) =====
         $display("=== 用例 5: 片 1 条目忽略 ===");
         content_q = {};
-        content_q.push_back({32'h6702_000F, 32'h7FFF_0070}); // idx=15: beam0/ch15(片1) → 忽略
+        content_q.push_back({32'h6702_000F, 32'h0007_7FFF}); // idx=15: beam0/ch15(片1) → 忽略
         content_q.push_back({32'h6703_000F, 32'h8000_4000}); // idx=15: 片1 → 忽略
         content_q.push_back({32'h6701_000F, 32'h0000_0063}); // delay beam0/ch15(片1) → 忽略
         send_packet(32'h0A0C_000B, content_q);  // apply

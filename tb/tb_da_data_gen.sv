@@ -118,10 +118,10 @@ module tb_da_data_gen;
         $display("=== 发送配置报文 ===");
         content_q = {};
         // FIR 分数延时直通系数: 每通道中心抽头 tap=7, coef=16384(1.0)
-        // data 格式: {coef[15:0], 12'b0, tap[3:0]} → tap=7 低 8 位 = 0x70
+        // data 格式: {12'b0, tap[3:0], coef[15:0]} → tap=7, coef=0x7FFF → 0x0007_7FFF
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
-                content_q.push_back({32'h6702_0000 + b*16 + c, 32'h7FFF_0070});
+                content_q.push_back({32'h6702_0000 + b*16 + c, 32'h0007_7FFF});
         // 权重 (beam0..3, ch0..7, re=0x4000, im=0)
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)

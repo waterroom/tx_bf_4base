@@ -68,7 +68,7 @@
 | 地址码               | idx 范围   | 字段                | data[31:0] 布局              | 动作           |
 | --------             | ---------- | ------              | ----------------             | ------         |
 | `0x6701_0000 + idx`  | 0..63      | delay_val[beam][ch] | [10:0]=delay (11bit, 0..1023)           | **apply 提交** |
-| `0x6702_0000 + idx`  | 0..63      | FIR coef[beam][ch]  | [31:16]=coef, [7:4]=tap_addr | **立即加载**   |
+| `0x6702_0000 + idx`  | 0..63      | FIR coef[beam][ch]  | [19:16]=tap_addr, [15:0]=coef | **立即加载**   |
 | `0x6703_0000 + idx`  | 0..63      | weight[beam][ch]    | [31:16]=im, [15:0]=re        | **立即加载**   |
 | `0x6705_0000 + beam` | 0..3       | phase_inc[beam]     | [31:0]=phase_inc             | **apply 暂存 + rst_bf 提交** |
 | `0x6706_0000 + beam` | 0..3       | phase_offset[beam]  | [31:0]=phase_offset          | **apply 暂存 + rst_bf 提交** |
@@ -96,8 +96,8 @@
 1) FIR 系数 (每通道 16 tap, 立即加载):
    for ch 0..7:
      for tap 0..15:
-       报文: addr = 0x6702_0000 + 0*8 + ch
-              data = {coef[15:0], 12'b0, tap[3:0]}   // [31:16]=coef, [7:4]=tap
+       报文: addr = 0x6702_0000 + 0*16 + ch
+              data = {12'b0, tap[3:0], coef[15:0]}   // [19:16]=tap, [15:0]=coef
 
 2) 复数权重 (每通道, 立即加载):
    for ch 0..7:
