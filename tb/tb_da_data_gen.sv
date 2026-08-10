@@ -127,9 +127,12 @@ module tb_da_data_gen;
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6703_0000 + b*16 + c, 32'h0000_7FFF});
-        // phase_inc (beam0 = 200MHz → phase_inc = 200e6/2.4e9 * 2^32)
-        content_q.push_back({32'h6705_0000, 32'h36BA2E8B}); // ≈200MHz
-        content_q.push_back({32'h6706_0000, 32'h0000_0000}); // phase_offset=0
+        // phase_inc (beam0..3 = 200/400/600/800MHz → phase_inc = f/2.4e9 * 2^32)
+        content_q.push_back({32'h6705_0000, 32'h15555555}); // beam0 ≈200MHz
+        content_q.push_back({32'h6705_0001, 32'h2AAAAAAB}); // beam1 ≈400MHz
+        content_q.push_back({32'h6705_0002, 32'h40000000}); // beam2 ≈600MHz
+        content_q.push_back({32'h6705_0003, 32'h55555555}); // beam3 ≈800MHz
+        // phase_offset=0 (全部)
         // delay=0 (全部)
         for (int b = 0; b < N_BEAM; b++)
             for (int c = 0; c < N_ELEM; c++)
