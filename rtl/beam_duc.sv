@@ -39,6 +39,7 @@ module beam_duc #(
     input  logic [$clog2(N_CH)-1:0]    weight_sel_ch,
     input  logic signed [COEF_W-1:0]   weight_re,
     input  logic signed [COEF_W-1:0]   weight_im,
+    input  logic [3:0]                 cfg_trunc,   // DBF  ‰≥ˆΩÿŒª”““∆¡ø (0x6704)
     // DDS ≈‰÷√
     input  logic [DDS_PHASE_W-1:0]     phase_inc,
     input  logic [DDS_PHASE_W-1:0]     phase_offset,
@@ -75,6 +76,7 @@ module beam_duc #(
         .weight_sel_ch  (weight_sel_ch),
         .weight_re      (weight_re),
         .weight_im      (weight_im),
+        .cfg_trunc      (cfg_trunc),
         .out_re         (bf_re),
         .out_im         (bf_im),
         .out_valid      (bf_valid)

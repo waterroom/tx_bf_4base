@@ -39,7 +39,8 @@ module tx_top (
     input  logic [$clog2(N_ELEM)-1:0]      cfg_weight_sel_ch,
     input  logic signed [COEF_W-1:0]       cfg_weight_re,
     input  logic signed [COEF_W-1:0]       cfg_weight_im,
-    // DAC 截位右移量 (0-15, 默认 4 = SUM_OUT_W-DAC_W; decode 0x6704 配置)
+    // DBF 输出截位右移量 (0-15, 默认 0; decode 0x6704 配置, 传递到
+    // beam_duc/tx_bf_core 控制每通道输出增益, 与 DAC 截位无关)
     input  logic [3:0]                     cfg_trunc,
 
     // 8 路 RF-DAC 输出 (复数 I/Q, 8 并行 @300MHz = 2.4Gs/s)
@@ -83,6 +84,7 @@ module tx_top (
                 .weight_sel_ch  (cfg_weight_sel_ch),
                 .weight_re      (cfg_weight_re),
                 .weight_im      (cfg_weight_im),
+                .cfg_trunc      (cfg_trunc),
                 .phase_inc      (cfg_phase_inc[b]),
                 .phase_offset   (cfg_phase_offset[b]),
                 .out_i          (beam_i[b]),
@@ -128,9 +130,9 @@ module tx_top (
         end
     endgenerate
 
-    // ---------- DAC 输出截位 (20bit → 16bit, 可配置右移量 + 饱和) ----------
-    // 截位右移量 cfg_trunc (0-15, 默认 4): sum >>> cfg_trunc 后饱和到 DAC_W。
-    // cfg_trunc=0 时无右移 (输出可能饱和), 通常 4 匹配原固定行为。
+    // ---------- DAC 输出截位 (20bit → 16bit, 固定右移 4 + 饱和) ----------
+    // 固定右移 4 (SUM_OUT_W-DAC_W): sum >>> 4 后饱和到 DAC_W。
+    // 注意: 0x6704 (cfg_trunc) 控制的是 tx_bf_core 输出截位, 不是这里。
     function automatic logic signed [DAC_W-1:0] dac_sat(input logic signed [SUM_OUT_W-1:0] v);
         if (v >  ((1 <<< (DAC_W-1)) - 1)) return  ((1 <<< (DAC_W-1)) - 1);
         else if (v < -(1 <<< (DAC_W-1)))  return -(1 <<< (DAC_W-1));
@@ -148,8 +150,8 @@ module tx_top (
                     dac_valid[d] <= 1'b0;
                 end else begin
                     for (int p = 0; p < INTERP; p++) begin
-                        dac_i_8p[d][p] <= dac_sat(sum_i[d][p] >>> cfg_trunc);
-                        dac_q_8p[d][p] <= dac_sat(sum_q[d][p] >>> cfg_trunc);
+                        dac_i_8p[d][p] <= dac_sat(sum_i[d][p] >>> 4'd4);
+                        dac_q_8p[d][p] <= dac_sat(sum_q[d][p] >>> 4'd4);
                     end
                     dac_valid[d] <= sum_valid[d];
                 end

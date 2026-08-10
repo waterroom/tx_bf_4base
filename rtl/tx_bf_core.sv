@@ -56,6 +56,9 @@ module tx_bf_core #(
     input  logic [$clog2(N_CH)-1:0]                   weight_sel_ch,
     input  logic signed [COEF_W-1:0]                  weight_re,
     input  logic signed [COEF_W-1:0]                  weight_im,
+    // DBF 输出截位右移量 (0-15, 默认 0; 控制 out_re/out_im 的增益,
+    // 0x6704 配置, 与 DAC 截位无关)
+    input  logic [3:0]                                cfg_trunc,
 
     // —— 16 路并行输出 ——
     output logic signed [FIR_OUT_W-1:0]               out_re [N_CH-1:0],
@@ -191,8 +194,10 @@ module tx_bf_core #(
             out_valid <= 1'b0;
         end else begin
             for (int k = 0; k < N_CH; k++) begin
-                out_re[k] <= cmult_re[k];
-                out_im[k] <= cmult_im[k];
+                // DBF 输出截位: cmult 18bit >>> cfg_trunc (右移缩小增益,
+                // 防止下游内插/混频饱和; cfg_trunc=0 时直通)
+                out_re[k] <= cmult_re[k] >>> cfg_trunc;
+                out_im[k] <= cmult_im[k] >>> cfg_trunc;
             end
             out_valid <= all_cmult_v;   // 8 通道 valid 对齐后输出
         end
