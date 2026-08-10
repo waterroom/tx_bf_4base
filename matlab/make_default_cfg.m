@@ -13,7 +13,7 @@ function cfg = make_default_cfg()
     cfg.bb_freq = [10e6, 30e6, 50e6, 70e6];
 
     % 4 个波束 LO 频率 (与 TB phase_inc 配置一致)
-    cfg.f_LO = [200e6, 900e6, 1500e6, 2200e6];
+    cfg.f_LO = [200e6, 400e6, 600e6, 800e6];  % 与当前 TB phase_inc 一致
 
     % 4 波束指向角 (度), 用于计算 TTD 延时
     cfg.angle = [-30, -10, 10, 30];
