@@ -13,7 +13,7 @@
 // VECT 布局 (demo_tb 确认): 输出 TDATA 每 32bit 槽 1 个 31bit 样本,
 //   vect0 = 最低槽 = 时间上最早的样本; 输入 TDATA 每 16bit 槽 1 个样本, 低位在先
 // 级间截位: 31bit → 16bit 取高 16bit [30:15] (半带 DC 增益≈1, 有效信号在高位)
-// 输入截位: 18bit → 16bit 取高 16bit (丢 2 LSB, 标度不变)
+// 输入截位: 18bit → 16bit 取低 16bit [15:0] (高 2 位符号扩展位, 标度不变)
 // 输出扩展: 16bit → 18bit 符号扩展 2bit (与混频链路 18bit 对齐)
 //
 // DSP: 每通道 6+2+2 = 10 MADDS × 8ch × 4beam × 2(I/Q) = 640
@@ -49,8 +49,9 @@ module interp_hb_3stage #(
         logic [255:0] m3;                // 级3 输出 8×31bit
         logic [15:0]  s3 [N_PAR-1:0];    // 级3 输出截位 8×16bit
 
-        // 输入 18bit → 16bit (取高 16bit)
-        assign in16 = in_data[ch][IN_W-1 -: 16];
+        // 输入 18bit → 16bit: 取低 16bit [15:0] (高 2 位是符号扩展位,
+        // 实际信号在 16bit 内; 不能取 [17:2], 那会右移 2 位 = ÷4 缩小信号)
+        assign in16 = in_data[ch][15:0];
 
         // ---------- 级1: 300→600 MHz (1×16 → 2×31) ----------
         fir_300to600_87p5pass_hf u_st1 (
