@@ -17,7 +17,7 @@
 | N_ELEM | 8（本片）/ 16（全系统）| 阵元数 |
 | INTERP | 8 | 8 倍内插（300MHz → 2.4GHz 等效）|
 | DATA_W | 16 | 基带 IQ 位宽 |
-| FIR_OUT_W | 18 | 内插/混频输出位宽（DBF 输出 16bit = DATA_W，内插输出 18bit）|
+| FIR_OUT_W | 18 | 混频/求和输出位宽（DBF/内插输出 16bit = DATA_W）|
 | DDS_PHASE_W | 32 | 相位累加位宽（分辨率 ~0.56Hz @2.4G）|
 | DDS_OUT_W | 16 | DDS sin/cos 位宽 |
 | MIXER_OUT_W | 18 | 混频输出位宽 |

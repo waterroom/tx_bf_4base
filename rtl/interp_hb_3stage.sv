@@ -45,7 +45,7 @@ module interp_hb_3stage #(
     // 分到偶/奇两相各 0.5), 3 级 = ×0.125 (÷8) → 输出 ×8 (<<<3) 补偿,
     // 幅度恢复到与输入一致, 饱和保护到 OUT_W。
     function automatic logic signed [OUT_W-1:0] up_sat(input logic signed [15:0] v);
-        logic signed [OUT_W:0] t;   // 16bit <<<3 = 19bit 中间量
+        logic signed [18:0] t;      // 16bit <<<3 = 19bit, 固定位宽 (不随 OUT_W)
         t = v <<< 3;
         if (t >  (1 <<< (OUT_W-1)) - 1) return  (1 <<< (OUT_W-1)) - 1;
         else if (t < -(1 <<< (OUT_W-1)))  return -(1 <<< (OUT_W-1));

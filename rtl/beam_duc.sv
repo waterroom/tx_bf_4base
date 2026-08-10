@@ -83,13 +83,13 @@ module beam_duc #(
     );
 
     // ---------- 2. 8 倍内插: I/Q 分别内插, 8 通道并行 ----------
-    logic signed [FIR_OUT_W-1:0] up_i [N_CH-1:0][N_PAR-1:0];
-    logic signed [FIR_OUT_W-1:0] up_q [N_CH-1:0][N_PAR-1:0];
+    logic signed [DATA_W-1:0] up_i [N_CH-1:0][N_PAR-1:0];   // 内插输出 16bit
+    logic signed [DATA_W-1:0] up_q [N_CH-1:0][N_PAR-1:0];
     logic                        up_valid;
 
     interp_hb_3stage #(
         .IN_W  (DATA_W),        // DBF 输出 16bit
-        .OUT_W (FIR_OUT_W),     // 内插输出 18bit (混频输入)
+        .OUT_W (DATA_W),        // 内插输出 16bit (混频 16×16 输入)
         .N_CH  (N_CH),
         .N_PAR (N_PAR)
     ) u_fir_i (
@@ -103,7 +103,7 @@ module beam_duc #(
 
     interp_hb_3stage #(
         .IN_W  (DATA_W),        // DBF 输出 16bit
-        .OUT_W (FIR_OUT_W),     // 内插输出 18bit (混频输入)
+        .OUT_W (DATA_W),        // 内插输出 16bit (混频 16×16 输入)
         .N_CH  (N_CH),
         .N_PAR (N_PAR)
     ) u_fir_q (
@@ -138,7 +138,7 @@ module beam_duc #(
         for (c = 0; c < N_CH; c++) begin : g_mix
             logic mix_v;
             cmult_8p #(
-                .IQ_W  (FIR_OUT_W),
+                .IQ_W  (DATA_W),        // 混频输入 16bit
                 .NCO_W (DDS_OUT_W),
                 .OUT_W (MIXER_OUT_W),
                 .N_PAR (N_PAR)
