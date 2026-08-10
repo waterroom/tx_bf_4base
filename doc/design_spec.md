@@ -82,7 +82,7 @@
 | in | cmd_clk / rst_cmd | 配置时钟（报文输入）|
 | in | cmd_data[63:0] / cmd_data_valid | 64bit 并行配置报文 |
 | in | rst_bf | 两片同步复位门（可选，数据路径定时复位）|
-| in | bb_i/bb_q/bb_valid[3:0] | 4 波束复基带输入（300MHz）|
+| in | bb_i/bb_q[63:0] + bb_valid[3:0] | 4 波束复基带输入（300MHz，打包向量，.v 兼容；波束 b 在 [b*16 +: 16]）|
 | out | rst_bf_request | apply 配置提交脉冲（主控感知两片完成）|
 | out | s00..s32_axis_0_tdata[255:0] | 8 路 DAC 数据（AXI-Stream TDATA）|
 | in | sXX_axis_0_tready | 下游就绪（当前恒 1）|

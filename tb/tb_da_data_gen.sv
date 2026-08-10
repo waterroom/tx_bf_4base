@@ -20,9 +20,10 @@ module tb_da_data_gen;
     logic user_sysref_dac = 0;
     logic [63:0] cmd_data = 0;
     logic        cmd_data_valid = 0;
-    logic signed [DATA_W-1:0] bb_i [N_BEAM-1:0];
-    logic signed [DATA_W-1:0] bb_q [N_BEAM-1:0];
-    logic                     bb_valid [N_BEAM-1:0];
+    // 基带打包向量 (.v 兼容): 波束 b 在 [b*DATA_W +: DATA_W]
+    logic signed [N_BEAM*DATA_W-1:0] bb_i;
+    logic signed [N_BEAM*DATA_W-1:0] bb_q;
+    logic [N_BEAM-1:0]               bb_valid;
     logic                     rst_bf_request;
     logic [INTERP*32-1:0]     s00_axis_0_tdata;
 
@@ -73,14 +74,16 @@ module tb_da_data_gen;
         if (rst_dac) begin
             t <= 0;
             for (int b = 0; b < N_BEAM; b++) begin
-                bb_i[b] <= 0; bb_q[b] <= 0; bb_valid[b] <= 0;
+                bb_i[b*DATA_W +: DATA_W] <= '0;
+                bb_q[b*DATA_W +: DATA_W] <= '0;
+                bb_valid[b] <= 0;
             end
         end else begin
             t <= t + CLK_PERIOD * 1e-9;
             for (int b = 0; b < N_BEAM; b++) begin
                 // 与 tb_tx_top 一致的激励写法: 显式 integer + signed, 幅度 0.5*32767
-                bb_i[b] <= $signed(integer'(0.5 * 32767.0 * $cos(2.0 * 3.14159265 * bb_freq[b] * t)));
-                bb_q[b] <= $signed(integer'(0.5 * 32767.0 * $sin(2.0 * 3.14159265 * bb_freq[b] * t)));
+                bb_i[b*DATA_W +: DATA_W] <= $signed(integer'(0.5 * 32767.0 * $cos(2.0 * 3.14159265 * bb_freq[b] * t)));
+                bb_q[b*DATA_W +: DATA_W] <= $signed(integer'(0.5 * 32767.0 * $sin(2.0 * 3.14159265 * bb_freq[b] * t)));
                 bb_valid[b] <= 1;
             end
         end
@@ -106,7 +109,11 @@ module tb_da_data_gen;
     // ---------- 主流程 ----------
     logic [63:0] content_q[$];
     initial begin
-        for (int b = 0; b < N_BEAM; b++) begin bb_i[b] = 0; bb_q[b] = 0; bb_valid[b] = 0; end
+        for (int b = 0; b < N_BEAM; b++) begin
+            bb_i[b*DATA_W +: DATA_W] = '0;
+            bb_q[b*DATA_W +: DATA_W] = '0;
+            bb_valid[b] = 0;
+        end
 
         // 复位
         rst_dac = 1; rst_cmd = 1;   // 复位 (高有效)

@@ -74,10 +74,11 @@ da_data_gen #(
     .cmd_clk     (clk_cfg),    .rst_cmd   (rst_cfg),    // 配置时钟
     // ---- 配置报文 (64bit 并行) ----
     .cmd_data       (cfg_data),    .cmd_data_valid (cfg_valid),
-    // ---- 4 波束复基带输入 (300MHz) ----
-    .bb_i   ({bb_i3, bb_i2, bb_i1, bb_i0}),
-    .bb_q   ({bb_q3, bb_q2, bb_q1, bb_q0}),
-    .bb_valid({bv3,  bv2,  bv1,  bv0 }),
+    // ---- 4 波束复基带输入 (300MHz, 打包向量 .v 兼容) ----
+    // 波束 b 的 16bit IQ 在 [b*16 +: 16], valid 位 b
+    .bb_i     (bb_i_vec),      // [63:0] = {b3, b2, b1, b0}
+    .bb_q     (bb_q_vec),
+    .bb_valid (bb_valid_vec),  // [3:0]
     // ---- 两片同步 (可选) ----
     .rst_bf        (1'b0),        // 不用可接地
     .rst_bf_request(),            // apply 配置完成脉冲 (可悬空)

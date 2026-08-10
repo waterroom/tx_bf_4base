@@ -27,10 +27,11 @@ module da_data_gen #(
     input  logic [63:0]                 cmd_data,
     input  logic                        cmd_data_valid,
 
-    // 4 路基带复 IQ 输入 (300MHz)
-    input  logic signed [DATA_W-1:0]    bb_i [N_BEAM-1:0],
-    input  logic signed [DATA_W-1:0]    bb_q [N_BEAM-1:0],
-    input  logic                        bb_valid [N_BEAM-1:0],
+    // 4 路基带复 IQ 输入 (300MHz), 打包向量端口 (.v 顶层兼容):
+    // 波束 b 的 16bit IQ 位于 [b*DATA_W +: DATA_W], valid 位 b
+    input  logic signed [N_BEAM*DATA_W-1:0] bb_i,
+    input  logic signed [N_BEAM*DATA_W-1:0] bb_q,
+    input  logic [N_BEAM-1:0]               bb_valid,
 
     // DAC 输出经 AXI-Stream TDATA (见下方 sXX_axis_0_tdata 打包)
 
@@ -168,11 +169,20 @@ module da_data_gen #(
     logic                    dac_valid_int [N_ELEM-1:0];
 
     // ---------- tx_top (cfg_* 端口版, 同步高有效复位) ----------
+    // 基带向量端口 → 数组拆包 (tx_top 内部用数组)
+    logic signed [DATA_W-1:0] bb_i_arr [N_BEAM-1:0];
+    logic signed [DATA_W-1:0] bb_q_arr [N_BEAM-1:0];
+    always_comb begin
+        for (int b = 0; b < N_BEAM; b++) begin
+            bb_i_arr[b] = bb_i[b*DATA_W +: DATA_W];
+            bb_q_arr[b] = bb_q[b*DATA_W +: DATA_W];
+        end
+    end
     tx_top u_tx (
         .clk_300m         (dac_coreclk),
         .rst              (rst_tx),
-        .bb_i             (bb_i),
-        .bb_q             (bb_q),
+        .bb_i             (bb_i_arr),
+        .bb_q             (bb_q_arr),
         .bb_valid         (bb_valid),
         .cfg_delay_val    (cfg_delay_val),
         .cfg_phase_inc    (cfg_phase_inc),
