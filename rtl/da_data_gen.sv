@@ -82,9 +82,10 @@ module da_data_gen #(
         .rst         (rst_cmd_sync)
     );
 
-    // ---------- 两片同步: rst_bf 滤波 + 数据路径定时复位 ----------
-    // rst_bf (外部主控给两片同时拉高) 8 拍移位滤波防抖 (参考工程做法),
-    // 滤波输出上升沿触发 RST_BF_WIDTH 拍的定时复位 (rst_tx)。
+    // ---------- 两片同步: rst_bf 脉冲捕获 + 数据路径定时复位 ----------
+    // rst_bf (外部主控给两片同时拉高): 8 拍移位寄存器按位或捕获
+    // 每一个复位脉冲 (含短毛刺) 并展宽, 上升沿触发 RST_BF_WIDTH 拍
+    // 定时复位 (rst_tx)。要求不漏复位请求, 不做防抖过滤。
     // 1 拍复位不够: 数据路径流水总 latency ~50-60 拍 (DDS ~8 + 混频 2 +
     // 3 级半带 FIR 每级 ~10-15 + 求和 2), 复位窗口必须覆盖内部流水
     // 排空, 否则复位释放后 latency 拍内输出仍是旧配置的过渡态。
@@ -99,10 +100,12 @@ module da_data_gen #(
         else              rst_bf_reg <= {rst_bf_reg[6:0], rst_bf};
     end
     logic rst_bf_filt;
-    // 按位与 = 连续 8 拍全 1 才有效 (真 8 拍防抖, 毛刺 <8 拍被过滤;
-    // 不能用 |, 那是 1 拍即有效 + 展宽 8 拍, 防抖失效)
-    assign rst_bf_filt = &rst_bf_reg;   // rst_bf 持续 8 拍以上视为有效
-    // 滤波输出上升沿 → 1 拍触发脉冲
+    // 按位或 = 捕获任意 rst_bf 高脉冲 (含 <8 拍毛刺), 移位展宽 8 拍 —
+    // 保证不漏掉任何一个复位请求 (两片同步复位门必须抓住每次拉高),
+    // filt 上升沿触发 RST_BF_WIDTH 拍定时复位。不用与 (&): 那是
+    // 连续 8 拍确认 (防抖), 会漏掉短脉冲。
+    assign rst_bf_filt = |rst_bf_reg;   // 捕获所有 rst_bf 脉冲, 展宽 8 拍
+    // 捕获输出上升沿 → 1 拍触发脉冲
     logic rst_bf_filt_r, rst_bf_pulse;
     always_ff @(posedge dac_coreclk) begin
         if (rst_dac_sync) rst_bf_filt_r <= 0;
