@@ -228,10 +228,12 @@ module da_data_gen #(
     // 基带向量端口 → 数组拆包 (tx_top 内部用数组; 用 bb_*_eff: VIO 使能时是内部 DDS)
     logic signed [DATA_W-1:0] bb_i_arr [N_BEAM-1:0];
     logic signed [DATA_W-1:0] bb_q_arr [N_BEAM-1:0];
+    logic                     bb_valid_arr [N_BEAM-1:0];
     always_comb begin
         for (int b = 0; b < N_BEAM; b++) begin
-            bb_i_arr[b] = bb_i_eff[b*DATA_W +: DATA_W];
-            bb_q_arr[b] = bb_q_eff[b*DATA_W +: DATA_W];
+            bb_i_arr[b]    = bb_i_eff[b*DATA_W +: DATA_W];
+            bb_q_arr[b]    = bb_q_eff[b*DATA_W +: DATA_W];
+            bb_valid_arr[b] = bb_valid[b];   // 向量 → 数组 (tx_top 端口是数组)
         end
     end
     tx_top u_tx (
@@ -239,7 +241,7 @@ module da_data_gen #(
         .rst              (rst_tx),
         .bb_i             (bb_i_arr),
         .bb_q             (bb_q_arr),
-        .bb_valid         (bb_valid),
+        .bb_valid         (bb_valid_arr),
         .cfg_delay_val    (cfg_delay_val),
         .cfg_phase_inc    (cfg_phase_inc),
         .cfg_phase_offset (cfg_phase_offset),
