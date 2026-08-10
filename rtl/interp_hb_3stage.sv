@@ -14,7 +14,9 @@
 //   vect0 = 最低槽 = 时间上最早的样本; 输入 TDATA 每 16bit 槽 1 个样本, 低位在先
 // 级间截位: 31bit → 16bit 取高 16bit [30:15] (半带 DC 增益≈1, 有效信号在高位)
 // 输入截位: 18bit → 16bit 取低 16bit [15:0] (高 2 位符号扩展位, 标度不变)
-// 输出扩展: 16bit → 18bit 符号扩展 2bit (与混频链路 18bit 对齐)
+// 输出补偿: 半带插值每级增益 0.5 (系数和 1.0 分 2 相), 3 级 ÷8 →
+//           输出 ×8 (<<<3) 补偿 + 饱和到 18bit, 幅度与输入一致
+// 注: 未补偿前 up_i = bf_re/8 (频谱峰 -18dB), 已修复
 //
 // DSP: 每通道 6+2+2 = 10 MADDS × 8ch × 4beam × 2(I/Q) = 640
 //       (手写 48 抽头 8 并行: 3072) — 省 ~79%
@@ -38,6 +40,17 @@ module interp_hb_3stage #(
     logic v1 [N_CH-1:0];   // 级1 输出 valid (每通道)
     logic v2 [N_CH-1:0];
     logic v3 [N_CH-1:0];
+
+    // 内插增益补偿: 半带插值每级输出幅度 = 输入 × 0.5 (系数和 1.0
+    // 分到偶/奇两相各 0.5), 3 级 = ×0.125 (÷8) → 输出 ×8 (<<<3) 补偿,
+    // 幅度恢复到与输入一致, 饱和保护到 OUT_W。
+    function automatic logic signed [OUT_W-1:0] up_sat(input logic signed [15:0] v);
+        logic signed [OUT_W:0] t;   // 16bit <<<3 = 19bit 中间量
+        t = v <<< 3;
+        if (t >  (1 <<< (OUT_W-1)) - 1) return  (1 <<< (OUT_W-1)) - 1;
+        else if (t < -(1 <<< (OUT_W-1)))  return -(1 <<< (OUT_W-1));
+        else return t[OUT_W-1:0];
+    endfunction
 
     for (genvar ch = 0; ch < N_CH; ch++) begin : g_ch
         // ---- 级间信号 ----
@@ -89,10 +102,10 @@ module interp_hb_3stage #(
             .m_axis_data_tvalid (v3[ch]),
             .m_axis_data_tdata  (m3)
         );
-        // 级3 输出 8×31bit (每 32bit 槽) → 截位 8×16bit → 18bit 符号扩展
+        // 级3 输出 8×31bit (每 32bit 槽) → 截位 8×16bit → ×8 内插增益补偿
         for (genvar p = 0; p < N_PAR; p++) begin : g_p
             assign s3[p] = m3[32*p + 30 -: 16];       // 取 32bit 槽的高 16bit
-            assign out_data[ch][p] = {{2{s3[p][15]}}, s3[p]};
+            assign out_data[ch][p] = up_sat(s3[p]);   // ×8 补偿 (半带插值 ÷8)
         end
     end
 
