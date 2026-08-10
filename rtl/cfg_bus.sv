@@ -101,17 +101,30 @@ module cfg_bus #(
     end
 
     // ---------- FIR 系数加载口 ----------
-    // 写 0x20 时: pwdata = {fir_sel_ch[7:4](忽略), fir_coef_addr[3:0], fir_coef_data[15:0]}
-    //   实际: fir_sel_ch = pwdata[19:16], fir_coef_addr = pwdata[15:12], fir_coef_data = pwdata[11:0]? 
-    //   简化: fir_sel_ch=pwdata[23:16], fir_coef_addr=pwdata[15:12], fir_coef_data=pwdata[11:0]不对
-    //   重新定义: pwdata = {16'b0, fir_sel_ch[3:0], fir_coef_addr[3:0], fir_coef_data[15:0]}
-    //   即 fir_sel_ch = pwdata[19:16], addr = pwdata[15:12]... 不对, 数据16bit
-    //   定义: pwdata[31:16]=fir_coef_data, pwdata[15:12]=fir_coef_addr, pwdata[11:8]=fir_sel_ch
-    assign cfg_fir_sel_ch    = apb_pwdata[11:8];
-    assign cfg_fir_coef_addr = apb_pwdata[15:12];
-    assign cfg_fir_coef_data = apb_pwdata[31:16];
+    // 写 0x20 时: pwdata[31:16]=fir_coef_data, pwdata[15:12]=fir_coef_addr, pwdata[11:8]=fir_sel_ch
+    // 写拍锁存 data/addr/sel, 与 load 脉冲同拍输出。load 是写后一拍寄存,
+    // 若 data 组合取当前 pwdata, 背靠背写 (PREADY 后立即下一笔) 时 load 拍
+    // pwdata 已变 → 加载错误系数/通道 (tb_tx_top 每笔间有空闲拍掩盖)。
+    logic [3:0]                    fir_sel_ch_q;
+    logic [$clog2(TAPS)-1:0]       fir_addr_q;
+    logic signed [COEF_W-1:0]      fir_data_q;
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            fir_sel_ch_q <= '0;
+            fir_addr_q   <= '0;
+            fir_data_q   <= '0;
+        end else if (apb_write && is_fir_port) begin
+            fir_sel_ch_q <= apb_pwdata[11:8];
+            fir_addr_q   <= apb_pwdata[15:12];
+            fir_data_q   <= apb_pwdata[31:16];
+        end
+    end
+    assign cfg_fir_sel_ch    = fir_sel_ch_q;
+    assign cfg_fir_coef_addr = fir_addr_q;
+    assign cfg_fir_coef_data = fir_data_q;
 
-    // FIR load 脉冲: 写 0x20 时对应波束产生 1 拍 load
+    // FIR load 脉冲: 写 0x20 时对应波束产生 1 拍 load (写拍采样, 下一拍输出,
+    // 与上方锁存的 data/addr/sel 同拍)
     always_ff @(posedge clk) begin
         if (rst) begin
             for (int b = 0; b < N_BEAM_P; b++) cfg_fir_load[b] <= 1'b0;
@@ -137,8 +150,14 @@ module cfg_bus #(
                 cfg_weight_load[b] <= apb_write & is_weight_port & (beam_idx == b[N_BEAM_P-1:0]);
         end
     end
-    // 被写通道号: 由地址低 3 位给出 (0x08+c 或 0x10+c)
-    assign cfg_weight_sel_ch = reg_idx[2:0];
+    // 被写通道号: 由地址低 3 位给出 (0x08+c 或 0x10+c), 写拍锁存与 load 同拍
+    // (若组合取当前 reg_idx, 背靠背写时 load 拍 paddr 已变 → 选中错误通道)
+    logic [$clog2(N_CH_P)-1:0] weight_sel_ch_q;
+    always_ff @(posedge clk) begin
+        if (rst) weight_sel_ch_q <= '0;
+        else if (apb_write && is_weight_port) weight_sel_ch_q <= reg_idx[2:0];
+    end
+    assign cfg_weight_sel_ch = weight_sel_ch_q;
 
     // ---------- 输出分发 ----------
     always_comb begin

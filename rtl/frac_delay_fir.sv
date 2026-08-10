@@ -30,7 +30,7 @@
 //   数据延迟（移位线之后）= DATA_PIPE_STAGES = 7 + USE_INREG = 8
 //   总延迟 = (TAPS-1) + 1(移位线本身) + 8 = TAPS + 8 = 24（TAPS=16）
 //
-//   valid 链：valid_sr[TAPS-1] → valid_q[0..DATA_PIPE_STAGES-1] → valid_out
+//   valid 链：valid_sr[0] → valid_q[0..DATA_PIPE_STAGES-1] → valid_out (跟随最新样本)
 //   长度 = DATA_PIPE_STAGES = 8，与数据路径严格对齐。
 //
 // 参数：
@@ -291,7 +291,9 @@ module frac_delay_fir #(
     end
 
     // -------------- valid 流水寄存器链（与数据路径同级数对齐） --------------
-    // 第一级由 valid_sr[TAPS-1] 喂入：标志当前 sr[] 窗口已完整。
+    // 第一级由 valid_sr[0] 喂入：输出 y(t) 的窗口包含最新样本 sr[0] (= in(t)),
+    // valid 跟随最新样本 (帧/突发模式正确); 不能用 valid_sr[TAPS-1] (最老样本,
+    // 会错位 TAPS-1 拍, 帧结束拖尾 15 拍)。
     // 之后按 DATA_PIPE_STAGES 级数级联（匹配实际 7/8 级数据流水），末端即 valid_out。
     logic valid_q [0:DATA_PIPE_STAGES-1];
 
@@ -299,7 +301,7 @@ module frac_delay_fir #(
         if (rst) begin
             for (int i = 0; i < DATA_PIPE_STAGES; i++) valid_q[i] <= 1'b0;
         end else begin
-            valid_q[0] <= valid_sr[TAPS-1];
+            valid_q[0] <= valid_sr[0];   // 跟随最新样本 valid (输出 y(t) 含 sr[0])
             for (int i = 1; i < DATA_PIPE_STAGES; i++) valid_q[i] <= valid_q[i-1];
         end
     end
