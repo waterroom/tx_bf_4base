@@ -187,17 +187,19 @@ module frac_delay_fir #(
     localparam int unsigned PROD_W = DATA_W + COEF_W;
     localparam int unsigned EXTW   = (ACC_W_LOCAL > PROD_W) ? (ACC_W_LOCAL - PROD_W) : 0;
 
-    // Level 0: 16 inputs → 8 sums
-    logic signed [ACC_W_LOCAL-1:0] tree_re_0 [0:7];
-    logic signed [ACC_W_LOCAL-1:0] tree_im_0 [0:7];
+    // 加法树: 强制 LUT (use_dsp=no) — 37bit 宽加法会被综合器映射到
+    // DSP (DSP48 ALU 48bit), 导致模块 DSP 46 = 32 乘法 + ~14 加法。
+    // 加法树用 LUT 实现 (F7/F8 mux), DSP 只留给 32 个乘法器。
+    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_0 [0:7];
+    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_im_0 [0:7];
     // Level 1: 8 → 4
-    logic signed [ACC_W_LOCAL-1:0] tree_re_1 [0:3];
-    logic signed [ACC_W_LOCAL-1:0] tree_im_1 [0:3];
+    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_1 [0:3];
+    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_im_1 [0:3];
     // Level 2: 4 → 2
-    logic signed [ACC_W_LOCAL-1:0] tree_re_2 [0:1];
-    logic signed [ACC_W_LOCAL-1:0] tree_im_2 [0:1];
+    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_2 [0:1];
+    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_im_2 [0:1];
     // Level 3: 2 → 1
-    logic signed [ACC_W_LOCAL-1:0] tree_re_3, tree_im_3;
+    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_3, tree_im_3;
 
     genvar i;
     generate
