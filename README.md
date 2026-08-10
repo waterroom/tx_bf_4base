@@ -20,7 +20,7 @@ BB1..4(300MHz复IQ) → [8通道DBF@300MHz] → [8×内插FIR→8并行] → [DD
 - 除 tb 外所有源文件用可综合、时序友好 SystemVerilog
 - FIR/DDS 用 Xilinx IP 核；FIFO/RAM 用 XPM 宏
 - 所有复位同步释放、高有效；注释用中文
-- 8 倍内插滤波器系数：`rtl/fdacoefs_fir_300Mto2400M_88Mpass.h`（48 抽头 Type2 线性相位 88MHz 通带）
+- 8 倍内插：3 级半带 FIR IP (`fir_300to600_87p5pass_hf` → `fir_600to1200_87p5pass_hf` → `fir_1200to2400_87p5pass_hf`)，每级 2× 等效插值，级间截位 + 输出 ×8 增益补偿
 
 ## 目录结构
 
@@ -44,7 +44,7 @@ tx_bf_4base/
 4. 生成 FIR/DDS IP + 系数 .coe
 5. IP 包装层 + 中层模块（beam_duc / sum_4to1 / cfg_bus）
 6. 顶层 tx_top + 约束
-7. TB 对比验证（SQNR > 50dB）
+7. TB 对比验证（`tb_da_data_gen` 端到端 DAC dump + MATLAB 频谱，4 波束独立 LO 混频验证）
 
 ## 参考
 

@@ -43,8 +43,8 @@ Open Synthesized Design 后：
 3. 双击路径看组合逻辑深度（Path 表里 Logic Levels 列）
 
 **本项目已知边界路径**（若违例优先查这些）：
-- dds_nco 相位累加器 `phase_acc + phase_inc*8`（常数乘 + 32bit 加）
-- interp_fir Stage C（已拆两级，应无问题）
+- DDS 多相累加 `phase_acc + phase_inc*8`（`dds_multi_phase_wrap`，常数乘 + 32bit 加）
+- 3 级半带内插 IP 的级间组合（`interp_hb_3stage`，每级 FIR IP 内部流水化）
 - int_delay SRL 分段读（已用参考仓库新版，应无问题）
 
 ## 4. 验证资源（判据：DSP ≤ 4272）
@@ -55,13 +55,14 @@ Open Synthesized Design 后：
 
 | 资源 | 估算 | ZU48DR 容量 | 状态 |
 |------|------|------------|------|
-| **DSP48E2** | **~4,450** | 4,272 | 🔴 **可能超限**（内插 FIR 占 3,072）|
+| **DSP48E2** | **~1,440** | 4,272 | 🟢（DBF 640 + 3 级半带内插 ~24×8ch×4beam×2IQ + 混频/求和）|
 | LUT | ~85K | 425,280 | 🟢 20% |
 | FF | ~40K | 850,560 | 🟢 5% |
 | BRAM | 少量 | 1,080 (36Kb) | 🟢 |
 
-若 DSP 超限：Report Utilization 展开看哪个模块（基本是 `interp_fir_8x_wrap` 的 8ch×8ph×6tap），
-量产需换 Xilinx FIR Compiler IP（`scripts/build_ip.tcl`，DSP 可降至 ~24-48/IP）。
+> 内插为 3 级半带 FIR IP（`fir_300to600/fir_600to1200/fir_1200to2400_87p5pass_hf`），
+> 每通道每级 6-10 MADDS，8ch×4beam×2(I/Q)×3 级 ≈ 1,152；DBF 复数乘 640；
+> 总计远低于 ZU48DR 的 4,272。旧 48 抽头手写内插（3,072 DSP）结构已废弃。
 
 ## 5. 常用综合优化选项（若时序/资源不达标）
 
