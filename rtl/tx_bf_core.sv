@@ -61,8 +61,8 @@ module tx_bf_core #(
     input  logic [3:0]                                cfg_trunc,
 
     // —— 16 路并行输出 ——
-    output logic signed [FIR_OUT_W-1:0]               out_re [N_CH-1:0],
-    output logic signed [FIR_OUT_W-1:0]               out_im [N_CH-1:0],
+    output logic signed [DATA_W-1:0]                  out_re [N_CH-1:0],  // DBF 输出 16bit
+    output logic signed [DATA_W-1:0]                  out_im [N_CH-1:0],
     output logic                                       out_valid
 );
 
@@ -181,7 +181,7 @@ module tx_bf_core #(
             cmult_3dsp #(
                 .A_W   (DATA_W),                          // 16 (输入已截位)
                 .B_W   (COEF_W),                          // 16
-                .OUT_W (FIR_OUT_W)                        // 18（内部已饱和）
+                .OUT_W (DATA_W)                           // 16（内部已饱和）
             ) u_cmult (
                 .clk       (clk),
                 .rst       (rst),
@@ -209,7 +209,7 @@ module tx_bf_core #(
             out_valid <= 1'b0;
         end else begin
             for (int k = 0; k < N_CH; k++) begin
-                // cmult 输出 (18bit, 内部已饱和) 直接寄存; 截位已在输入侧
+                // cmult 输出 (16bit, 内部已饱和) 直接寄存; 截位已在输入侧
                 out_re[k] <= cmult_re[k];
                 out_im[k] <= cmult_im[k];
             end

@@ -50,8 +50,8 @@ module beam_duc #(
 );
 
     // ---------- 1. DBF: 8 通道 TTD 波束形成 ----------
-    logic signed [FIR_OUT_W-1:0] bf_re [N_CH-1:0];
-    logic signed [FIR_OUT_W-1:0] bf_im [N_CH-1:0];
+    logic signed [DATA_W-1:0] bf_re [N_CH-1:0];   // DBF 输出 16bit
+    logic signed [DATA_W-1:0] bf_im [N_CH-1:0];
     logic                        bf_valid;
 
     tx_bf_core #(
@@ -88,8 +88,8 @@ module beam_duc #(
     logic                        up_valid;
 
     interp_hb_3stage #(
-        .IN_W  (FIR_OUT_W),
-        .OUT_W (FIR_OUT_W),
+        .IN_W  (DATA_W),        // DBF 输出 16bit
+        .OUT_W (FIR_OUT_W),     // 内插输出 18bit (混频输入)
         .N_CH  (N_CH),
         .N_PAR (N_PAR)
     ) u_fir_i (
@@ -102,8 +102,8 @@ module beam_duc #(
     );
 
     interp_hb_3stage #(
-        .IN_W  (FIR_OUT_W),
-        .OUT_W (FIR_OUT_W),
+        .IN_W  (DATA_W),        // DBF 输出 16bit
+        .OUT_W (FIR_OUT_W),     // 内插输出 18bit (混频输入)
         .N_CH  (N_CH),
         .N_PAR (N_PAR)
     ) u_fir_q (

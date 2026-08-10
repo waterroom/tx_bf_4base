@@ -17,7 +17,7 @@
 | N_ELEM | 8（本片）/ 16（全系统）| 阵元数 |
 | INTERP | 8 | 8 倍内插（300MHz → 2.4GHz 等效）|
 | DATA_W | 16 | 基带 IQ 位宽 |
-| FIR_OUT_W | 18 | DBF/内插输出位宽 |
+| FIR_OUT_W | 18 | 内插/混频输出位宽（DBF 输出 16bit = DATA_W，内插输出 18bit）|
 | DDS_PHASE_W | 32 | 相位累加位宽（分辨率 ~0.56Hz @2.4G）|
 | DDS_OUT_W | 16 | DDS sin/cos 位宽 |
 | MIXER_OUT_W | 18 | 混频输出位宽 |
@@ -34,8 +34,9 @@
 复基带 IQ (16bit, 300M)
   → tx_bf_core: 每通道
       int_delay (整数延时 0..1023) → frac_delay_fir (16tap 分数延时)
-      → cmult_3dsp (复数权重 w_re/w_im, 相位补偿/波束扫描)
-   输出 8 通道 18bit IQ (bf_re/bf_im)
+      → cmult_3dsp (复数权重 w_re/w_im, 相位补偿/波束扫描; 输入已截位 16bit,
+  A_W×B_W = 16×16, 输出 16bit)
+   输出 8 通道 16bit IQ (bf_re/bf_im)
   → interp_hb_3stage: 3 级半带 FIR IP 8 倍内插
       fir_300to600 → fir_600to1200 → fir_1200to2400 (每级 2× 等效)
       级间截位 [30:15] (半带每级增益 0.5), 输出 ×8 增益补偿
