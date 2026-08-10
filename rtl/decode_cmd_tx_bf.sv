@@ -366,10 +366,10 @@ module decode_cmd_tx_bf #(
         end
     end
 
-    // ---- 6e. tx_bf_trunc (DAC 截位右移量, 0x6704, 立即生效) ----
+    // ---- 6e. tx_bf_trunc (tx_bf_core 输出截位右移量, 0x6704, 立即生效) ----
     always_ff @(posedge da_clk) begin
         if (rst_da_clk)
-            tx_bf_trunc <= 4'd4;   // 默认右移 4 (SUM_OUT_W-DAC_W)
+            tx_bf_trunc <= 4'd0;   // 默认无右移 (DBF 输出直通)
         else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6704)
             tx_bf_trunc <= da_data_reg[2][3:0];
     end
