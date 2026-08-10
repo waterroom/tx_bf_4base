@@ -99,7 +99,9 @@ module da_data_gen #(
         else              rst_bf_reg <= {rst_bf_reg[6:0], rst_bf};
     end
     logic rst_bf_filt;
-    assign rst_bf_filt = |rst_bf_reg;   // rst_bf 持续 8 拍以上视为有效
+    // 按位与 = 连续 8 拍全 1 才有效 (真 8 拍防抖, 毛刺 <8 拍被过滤;
+    // 不能用 |, 那是 1 拍即有效 + 展宽 8 拍, 防抖失效)
+    assign rst_bf_filt = &rst_bf_reg;   // rst_bf 持续 8 拍以上视为有效
     // 滤波输出上升沿 → 1 拍触发脉冲
     logic rst_bf_filt_r, rst_bf_pulse;
     always_ff @(posedge dac_coreclk) begin
