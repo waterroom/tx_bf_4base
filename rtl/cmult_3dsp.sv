@@ -14,7 +14,10 @@
 //
 // Pipeline (each stage has only 1 operation type):
 //   Cycle 0: Input register
-//   Cycle 1: Addition (a+b, c+d) — 需要 A_W+1 / B_W+1 位防溢出
+//   Cycle 1: Addition (a+b, c+d) + 饱和截位回 A_W/B_W
+//            (19/17bit 乘法会被综合器拆 2 DSP → 总 4; 饱和截位到
+//             18/16bit 后 P2 = 18×16 → 1 DSP, 总 3 DSP.
+//             正常信号 |I|+|Q| < 2^17 不触发饱和, 无精度损失)
 //   Cycle 2: Multiplication (3 DSP)
 //   Cycle 3: First subtraction (P0-P1, P2-P0)
 //   Cycle 4: Second subtraction ((P2-P0)-P1)
@@ -45,8 +48,8 @@ module cmult_3dsp #(
 );
 
     localparam int unsigned P_W  = A_W + B_W;       // P0/P1 位宽
-    localparam int unsigned P2_W = P_W + 2;         // P2 位宽 (含 sum 扩展)
-    localparam int unsigned IW   = P_W + 2;         // 内部统一位宽
+    localparam int unsigned P2_W = P_W;             // P2 位宽 (饱和截位后 18×16 = P_W)
+    localparam int unsigned IW   = P_W + 2;         // 内部统一位宽 (留 2bit 余量)
 
     // ======== Cycle 0: Input register ========
     logic signed [A_W-1:0] a_re_r, a_im_r;
@@ -61,9 +64,23 @@ module cmult_3dsp #(
         end
     end
 
-    // ======== Cycle 1: Addition (扩展 1 位防溢出) ========
-    logic signed [A_W:0]   a_sum_r;                 // A_W+1 位
-    logic signed [B_W:0]   b_sum_r;                 // B_W+1 位
+    // ======== Cycle 1: Addition + 饱和截位 (P2 用 1 DSP) ========
+    // a_re+a_im 满幅需 19bit, 但 19×17 乘法综合拆 2 DSP (总 4 DSP);
+    // 饱和截位到 A_W/B_W 后 P2 = 18×16 → 1 DSP (总 3 DSP)。
+    // 正常信号 (|I|+|Q| < 2^(A_W-1)) 不触发饱和, 无精度损失。
+    function automatic logic signed [A_W-1:0] sat_a(input logic signed [A_W:0] v);
+        if (v >  (1 <<< (A_W-1)) - 1) return  (1 <<< (A_W-1)) - 1;
+        else if (v < -(1 <<< (A_W-1)))  return -(1 <<< (A_W-1));
+        else return v[A_W-1:0];
+    endfunction
+    function automatic logic signed [B_W-1:0] sat_b(input logic signed [B_W:0] v);
+        if (v >  (1 <<< (B_W-1)) - 1) return  (1 <<< (B_W-1)) - 1;
+        else if (v < -(1 <<< (B_W-1)))  return -(1 <<< (B_W-1));
+        else return v[B_W-1:0];
+    endfunction
+
+    logic signed [A_W-1:0] a_sum_r;                 // 饱和截位后 18bit
+    logic signed [B_W-1:0] b_sum_r;                 // 饱和截位后 16bit
     logic signed [A_W-1:0] a_re_rr, a_im_rr;
     logic signed [B_W-1:0] b_re_rr, b_im_rr;
     logic                  v1;
@@ -73,8 +90,8 @@ module cmult_3dsp #(
             a_sum_r <= '0; b_sum_r <= '0;
             a_re_rr <= '0; a_im_rr <= '0; b_re_rr <= '0; b_im_rr <= '0; v1 <= 1'b0;
         end else begin
-            a_sum_r <= a_re_r + a_im_r;             // (A_W+1)-bit sum
-            b_sum_r <= b_re_r + b_im_r;             // (B_W+1)-bit sum
+            a_sum_r <= sat_a(a_re_r + a_im_r);      // 饱和截位 18bit
+            b_sum_r <= sat_b(b_re_r + b_im_r);      // 饱和截位 16bit
             a_re_rr <= a_re_r; a_im_rr <= a_im_r;  // delay align
             b_re_rr <= b_re_r; b_im_rr <= b_im_r;
             v1 <= v0;
