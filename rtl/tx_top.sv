@@ -130,8 +130,10 @@ module tx_top (
         end
     endgenerate
 
-    // ---------- DAC 输出截位 (20bit → 16bit, 固定右移 4 + 饱和) ----------
-    // 固定右移 4 (SUM_OUT_W-DAC_W): sum >>> 4 后饱和到 DAC_W。
+    // ---------- DAC 输出截位 (20bit → 16bit, 固定右移 2 + 饱和) ----------
+    // 固定右移 2: 实测 4 波束求和峰值 ≈ 65568 (2^16), 20bit 高位几乎空,
+    // 右移 4 只用到 12.5% 动态 (浪费 ~18dB); 右移 2 → 峰值 50% 满幅,
+    // 余量 6dB (多波束同相叠加或基带满幅时 dac_sat 饱和保护)。
     // 注意: 0x6704 (cfg_trunc) 控制的是 tx_bf_core 输出截位, 不是这里。
     function automatic logic signed [DAC_W-1:0] dac_sat(input logic signed [SUM_OUT_W-1:0] v);
         if (v >  ((1 <<< (DAC_W-1)) - 1)) return  ((1 <<< (DAC_W-1)) - 1);
@@ -150,8 +152,8 @@ module tx_top (
                     dac_valid[d] <= 1'b0;
                 end else begin
                     for (int p = 0; p < INTERP; p++) begin
-                        dac_i_8p[d][p] <= dac_sat(sum_i[d][p] >>> 4'd4);
-                        dac_q_8p[d][p] <= dac_sat(sum_q[d][p] >>> 4'd4);
+                        dac_i_8p[d][p] <= dac_sat(sum_i[d][p] >>> 4'd2);
+                        dac_q_8p[d][p] <= dac_sat(sum_q[d][p] >>> 4'd2);
                     end
                     dac_valid[d] <= sum_valid[d];
                 end
