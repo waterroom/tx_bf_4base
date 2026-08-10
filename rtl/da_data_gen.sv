@@ -166,21 +166,72 @@ module da_data_gen #(
         .cfg_apply_pulse (cfg_apply_pulse),
         .tx_bf_trunc     (cfg_trunc)
     );
-    assign rst_bf_request = cfg_apply_pulse;
 
     // ---------- tx_top 输出 → 内部 DAC 数据 (供 AXI-Stream TDATA 打包) ----------
     logic signed [DAC_W-1:0] dac_i_8p_int [N_ELEM-1:0][INTERP-1:0];
     logic signed [DAC_W-1:0] dac_q_8p_int [N_ELEM-1:0][INTERP-1:0];
     logic                    dac_valid_int [N_ELEM-1:0];
 
+    // ================= 模拟基带源 (VIO 控制, 参考工程做法) =================
+    // VIO probe_out0 = DDS 频率字 (up_dds0_incr), probe_out1 = 使能 (vio_dds0_en)。
+    // 使能时: 内部 DDS 生成 4 波束同频正弦基带, 替代外部 bb 输入 (调试用,
+    // 无外部基带也能输出信号); 使能上升沿 → rst_bf_request。
+    wire [31:0] up_dds0_incr;
+    wire        vio_dds0_en;
+    vio_dac vio_dac0 (
+        .clk       (dac_coreclk),
+        .probe_in0 (1'b1),            // 输入探针占位 (无 clk_locked 可用)
+        .probe_out0(up_dds0_incr),
+        .probe_out1(vio_dds0_en)
+    );
+    // 使能上升沿捕获 (8 拍展宽, 不漏任何一次切换)
+    reg vio_dds0_en_reg;
+    always_ff @(posedge dac_coreclk) begin
+        if (rst_dac_sync) vio_dds0_en_reg <= 0;
+        else              vio_dds0_en_reg <= vio_dds0_en;
+    end
+    reg [7:0] vio_dds0_en_rise_reg;
+    always_ff @(posedge dac_coreclk) begin
+        if (rst_dac_sync) vio_dds0_en_rise_reg <= '0;
+        else              vio_dds0_en_rise_reg <= {vio_dds0_en_rise_reg[6:0], ~vio_dds0_en_reg & vio_dds0_en};
+    end
+    wire vio_dds0_en_rise = |vio_dds0_en_rise_reg;
+    // rst_bf_request: apply 配置完成 或 VIO 模拟基带使能上升沿 (两片协调)
+    assign rst_bf_request = cfg_apply_pulse | vio_dds0_en_rise;
+    // 内部基带 DDS (复用 dds_core_tx_bf_4base): {相位, 频率字}
+    wire [31:0] base_tdata;
+    dds_core_tx_bf_4base u_dds_base (
+        .aclk               (dac_coreclk),
+        .aclken             (1'b1),
+        .aresetn            (~rst_dac_sync),
+        .s_axis_phase_tvalid(1'b1),
+        .s_axis_phase_tdata ({32'd0, up_dds0_incr}),
+        .m_axis_data_tvalid (),
+        .m_axis_data_tdata  (base_tdata)
+    );
+    wire signed [15:0] base_i = {base_tdata[13:0], 2'b00};   // cos (14bit<<2)
+    wire signed [15:0] base_q = {base_tdata[29:16], 2'b00};  // sin (14bit<<2)
+    // 基带 mux: VIO 使能 → 内部 DDS (4 波束同频), 否则外部 bb
+    logic signed [N_BEAM*DATA_W-1:0] bb_i_eff, bb_q_eff;
+    always_comb begin
+        bb_i_eff = bb_i;
+        bb_q_eff = bb_q;
+        if (vio_dds0_en) begin
+            for (int b = 0; b < N_BEAM; b++) begin
+                bb_i_eff[b*DATA_W +: DATA_W] = base_i;
+                bb_q_eff[b*DATA_W +: DATA_W] = base_q;
+            end
+        end
+    end
+
     // ---------- tx_top (cfg_* 端口版, 同步高有效复位) ----------
-    // 基带向量端口 → 数组拆包 (tx_top 内部用数组)
+    // 基带向量端口 → 数组拆包 (tx_top 内部用数组; 用 bb_*_eff: VIO 使能时是内部 DDS)
     logic signed [DATA_W-1:0] bb_i_arr [N_BEAM-1:0];
     logic signed [DATA_W-1:0] bb_q_arr [N_BEAM-1:0];
     always_comb begin
         for (int b = 0; b < N_BEAM; b++) begin
-            bb_i_arr[b] = bb_i[b*DATA_W +: DATA_W];
-            bb_q_arr[b] = bb_q[b*DATA_W +: DATA_W];
+            bb_i_arr[b] = bb_i_eff[b*DATA_W +: DATA_W];
+            bb_q_arr[b] = bb_q_eff[b*DATA_W +: DATA_W];
         end
     end
     tx_top u_tx (
