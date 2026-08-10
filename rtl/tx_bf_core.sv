@@ -76,6 +76,13 @@ module tx_bf_core #(
     // ----------------------------------------------------------------
     // 复数权重寄存器（每通道一对）
     // ----------------------------------------------------------------
+    // 18bit → 16bit 饱和截位 (cmult_3dsp 输入, DBF 输出增益控制 cfg_trunc)
+    function automatic logic signed [DATA_W-1:0] sat16_bf(input logic signed [FIR_OUT_W-1:0] v);
+        if (v >  (1 <<< (DATA_W-1)) - 1) return  (1 <<< (DATA_W-1)) - 1;
+        else if (v < -(1 <<< (DATA_W-1)))  return -(1 <<< (DATA_W-1));
+        else return v[DATA_W-1:0];
+    endfunction
+
     // 配置寄存器 (权重): 声明初始化, 不随数据路径复位清空
     // (rst_bf/数据路径复位只清流水, 权重配置在复位中保留)
     logic signed [COEF_W-1:0] w_re [N_CH-1:0] = '{default: '0};
@@ -163,16 +170,24 @@ module tx_bf_core #(
             );
 
             // ---- 3) 复数乘法（相位补偿/波束扫描，3-DSP 全分离流水）----
+            // DBF 输出截位 cfg_trunc 移到 cmult 输入: frac_delay_fir 输出
+            // 18bit >>> cfg_trunc 饱和到 16bit → cmult_3dsp 为 16×16 乘法
+            // (输入位宽降低, 内部位宽/逻辑更省; 输出仍 18bit 直通)
+            logic signed [DATA_W-1:0] cmult_a_re, cmult_a_im;
+            always_comb begin
+                cmult_a_re = sat16_bf(fd_re >>> cfg_trunc);
+                cmult_a_im = sat16_bf(fd_im >>> cfg_trunc);
+            end
             cmult_3dsp #(
-                .A_W   (FIR_OUT_W),                       // 18
+                .A_W   (DATA_W),                          // 16 (输入已截位)
                 .B_W   (COEF_W),                          // 16
                 .OUT_W (FIR_OUT_W)                        // 18（内部已饱和）
             ) u_cmult (
                 .clk       (clk),
                 .rst       (rst),
                 .valid_in  (fd_v),
-                .a_re      (fd_re),
-                .a_im      (fd_im),
+                .a_re      (cmult_a_re),
+                .a_im      (cmult_a_im),
                 .b_re      (w_re[k]),
                 .b_im      (w_im[k]),
                 .o_re      (cmult_re[k]),
@@ -194,10 +209,9 @@ module tx_bf_core #(
             out_valid <= 1'b0;
         end else begin
             for (int k = 0; k < N_CH; k++) begin
-                // DBF 输出截位: cmult 18bit >>> cfg_trunc (右移缩小增益,
-                // 防止下游内插/混频饱和; cfg_trunc=0 时直通)
-                out_re[k] <= cmult_re[k] >>> cfg_trunc;
-                out_im[k] <= cmult_im[k] >>> cfg_trunc;
+                // cmult 输出 (18bit, 内部已饱和) 直接寄存; 截位已在输入侧
+                out_re[k] <= cmult_re[k];
+                out_im[k] <= cmult_im[k];
             end
             out_valid <= all_cmult_v;   // 8 通道 valid 对齐后输出
         end
