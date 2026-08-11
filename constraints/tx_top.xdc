@@ -1,53 +1,63 @@
 # =============================================================================
-# tx_top.xdc  --  时序与引脚约束 (ZU48DR RFSoC)
+# tx_top.xdc  --  时序约束 (da_data_gen 顶层, ZU48DR RFSoC)
 # =============================================================================
-# 本约束为模板, 实际引脚分配需按 PCB 设计填写。
+# 顶层 da_data_gen 端口: dac_coreclk / cmd_clk / rst_dac / rst_cmd / rst_bf /
+#   cmd_data[63:0]+valid / bb_i/bb_q[63:0]+bb_valid[3:0] /
+#   rst_bf_request / sXX_axis_0_tdata[255:0]+tready
+# 引脚分配按实际 PCB 填写 (见文件尾模板)。
 # =============================================================================
 
-# ---------- 主时钟 300MHz (PL 时钟, 兼作 RF-DAC AXI-Stream 时钟) ----------
-create_clock -period 3.333 -name clk_300m [get_ports clk_300m]
+# ---------- 1. 主时钟 ----------
+# 数据路径时钟 300MHz (dac_coreclk)
+create_clock -period 3.333 -name dac_coreclk [get_ports dac_coreclk]
+# 配置报文时钟 (cmd_clk, 一般 10-20MHz; 按实际调整)
+create_clock -period 10.0  -name cmd_clk     [get_ports cmd_clk]
 
-# ---------- 异步复位: false_path ----------
-set_false_path -from [get_ports async_rst_n] -to [get_clocks clk_300m]
+# ---------- 2. 异步复位: false_path ----------
+set_false_path -from [get_ports rst_dac]
+set_false_path -from [get_ports rst_cmd]
+set_false_path -from [get_ports rst_bf]
 
-# ---------- 复位树: 高扇出到 256 个 DSP RST 引脚, 限制扇出让综合器复制 ----------
-# (综合 WNS 最差路径 = rst -> DSP RSTP, 布线延迟 5.4ns; 复制复位树后扇出收敛)
-set_property MAX_FANOUT 512 [get_nets rst]
+# ---------- 3. 异步时钟域 (cmd_clk ⇄ dac_coreclk, CDC FIFO 处理) ----------
+set_clock_groups -asynchronous \
+    -group [get_clocks dac_coreclk] \
+    -group [get_clocks cmd_clk]
+set_false_path -from [get_clocks cmd_clk]     -to [get_clocks dac_coreclk]
+set_false_path -from [get_clocks dac_coreclk] -to [get_clocks cmd_clk]
 
-# ---------- APB 配置口: 若异步于 300MHz ----------
-# 假设 APB 时钟与 300MHz 同源; 若异步则取消注释:
-# create_clock -period 10.0 -name apb_clk [get_ports apb_clk]
-# set_false_path -from [get_clocks apb_clk] -to [get_clocks clk_300m]
-# set_false_path -from [get_clocks clk_300m] -to [get_clocks apb_clk]
+# ---------- 4. 配置寄存器 (静态配置, false_path) ----------
+# decode_cmd_tx_bf 内的配置寄存器 (delay/weight/FIR 系数/phase) 为静态配置,
+# 只在 apply 时更新, 不参与数据路径时序收敛
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*delay_reg*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*wre_reg*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*wim_reg*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*pinc_reg*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*poff_reg*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*fir_*coef*}]
 
-# ---------- 配置寄存器 (静态配置, false_path) ----------
-# delay_val / weight / phase_inc 等配置寄存器为静态, 不做时序收敛
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_cfg*delay_reg*}]
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_cfg*wre_reg*}]
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_cfg*wim_reg*}]
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_cfg*pinc_reg*}]
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_cfg*poff_reg*}]
+# ---------- 5. 复位树扇出限制 ----------
+# 数据路径复位 rst_tx 高扇出到 DSP/FF RST 引脚, 限制扇出让综合器复制
+set_property MAX_FANOUT 512 [get_nets -hier -filter {NAME =~ *rst_tx*}]
 
-# ---------- 内部 8 并行数据总线对齐 ----------
-# 从 interp_fir → cmult_8p → sum_4to1 的 8 并行总线 (288bit 复数)
-set_bus_skew  -from [get_cells -hier -filter {NAME =~ *u_fir_*mac_out*}] \
-              -to   [get_cells -hier -filter {NAME =~ *u_mix*u_cmult*}] 0.0
-set_max_delay -from [get_cells -hier -filter {NAME =~ *u_fir_*mac_out*}] \
+# ---------- 6. 内部 8 并行总线对齐 (内插 → 混频) ----------
+# 8 并行样本总线 (288bit 复数) 需要位间对齐
+set_bus_skew -from [get_cells -hier -filter {NAME =~ *u_fir_i*g_out*s3*}] \
+             -to   [get_cells -hier -filter {NAME =~ *u_mix*u_cmult*}] 0.0
+set_max_delay -from [get_cells -hier -filter {NAME =~ *u_fir_i*g_out*s3*}] \
               -to   [get_cells -hier -filter {NAME =~ *u_mix*u_cmult*}] 3.333
 
-# ---------- RF-DAC 接口 ----------
-# RF Data Converter IP 自动处理 RF-DAC tile 时钟与 PL AXI-Stream 时钟的跨时钟域
-# PL 侧 8 并行 @300MHz AXI-Stream 连接由 RF Data Converter IP 约束
-# 此处不手动分配 RF-DAC 引脚 (RFSoC RF-DAC 引脚固定)
+# ---------- 7. 输入输出延时 (按实际来源/去向约束) ----------
+# 基带输入: 外部提供 4 路基带 (300MHz), 按实际时序
+# set_input_delay  -clock dac_coreclk -max 1.5 [get_ports {bb_i bb_q bb_valid}]
+# 配置报文输入 (cmd_clk 域)
+# set_input_delay  -clock cmd_clk -max 3.0 [get_ports {cmd_data cmd_data_valid}]
+# DAC 输出 (8 路 AXI-Stream TDATA, 300MHz)
+# set_output_delay -clock dac_coreclk -max 1.5 [get_ports {s00_axis_0_tdata s02_axis_0_tdata}]
+# set_output_delay -clock dac_coreclk -max 1.5 [get_ports {s10_axis_0_tdata s12_axis_0_tdata}]
+# set_output_delay -clock dac_coreclk -max 1.5 [get_ports {s20_axis_0_tdata s22_axis_0_tdata}]
+# set_output_delay -clock dac_coreclk -max 1.5 [get_ports {s30_axis_0_tdata s32_axis_0_tdata}]
 
-# ---------- 基带输入 ----------
-# 4 路基带 IQ 输入, 按实际来源 (JESD204 / 并行 LVDS) 约束
-# set_input_delay -clock clk_300m [get_ports {bb_i_* bb_q_*}]
-
-# ---------- 引脚分配 (模板, 按实际 PCB 填写) ----------
-# set_property PACKAGE_PIN XX [get_ports clk_300m]
-# set_property IOSTANDARD LVCMOS18 [get_ports clk_300m]
-# ... 其余引脚按 PCB
-
-# ---------- 无效路径: DDS NCO LROM ----------
-# dds_nco 的 sin_lut 用 $readmemh 初始化, 综合时为 BRAM, 无时序路径约束需求
+# ---------- 8. 引脚分配 (模板, 按实际 PCB 填写) ----------
+# set_property PACKAGE_PIN XX [get_ports dac_coreclk]
+# set_property IOSTANDARD LVCMOS18 [get_ports dac_coreclk]
+# ... 其余端口按 PCB 原理图

@@ -131,7 +131,18 @@
 拍N: 0xXXXXXXXX_8F9009F8    (Checksum + 帧尾)
 ```
 
-## 6. 两片 ZU48DR 使用说明
+## 6. valid 语义（重要）
+
+- **数据路径 valid（all_cmult_v / beam_valid_all / dac_valid）**：仅在
+  **bb_valid 连续有效**时成立——`frac_delay_fir` 的 valid 跟随最新样本
+  （`valid_sr[0]`），`tx_bf_core` 的 `all_cmult_v` 是 8 通道 valid 对齐
+  后输出，`beam_valid_all` 是 4 波束求和对齐。
+- **帧/突发模式**：若 bb_valid 存在间隙，数据路径 valid 会随之出现间隙
+  （输出在无效区间无有效数据），**下游依赖 valid 的模块（DAC 打包/采集）
+  必须按 valid 使能，不能假定连续**。
+- 流水延迟内（约 60-80 拍）valid 为 0，属正常初始化。
+
+## 7. 两片 ZU48DR 使用说明
 
 - 每片 ZU48DR 独立运行一个 `da_data_gen` 实例
 - 每片处理 8 阵元 × 4 波束，输出 8 路 DAC；两片合计 16 阵元 × 4 波束
