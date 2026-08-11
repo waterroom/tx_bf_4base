@@ -100,7 +100,7 @@ module cmult_3dsp #(
 
     // ======== Cycle 2: Multiplication (3 DSP) ========
     (* use_dsp = "yes" *) logic signed [P_W-1:0]  p0, p1;   // A_W × B_W
-    (* use_dsp = "yes" *) logic signed [P2_W-1:0] p2;        // (A_W+1) × (B_W+1)
+    (* use_dsp = "yes" *) logic signed [P2_W-1:0] p2;        // (饱和截位后) A_W × B_W
     logic                  v2;
 
     always_ff @(posedge clk) begin
@@ -114,8 +114,8 @@ module cmult_3dsp #(
     end
 
     // ======== Cycle 3: First subtraction ========
-    // 统一扩展到 IW 位再做减法
-    logic signed [IW-1:0] real_r, temp_r;
+    // 统一扩展到 IW 位再做减法 (强制 LUT, 不用 DSP48 ALU)
+    (* use_dsp = "no" *) logic signed [IW-1:0] real_r, temp_r;
     logic signed [P_W-1:0] p1_r;
     logic                  v3;
 
@@ -130,7 +130,7 @@ module cmult_3dsp #(
     end
 
     // ======== Cycle 4: Second subtraction ========
-    logic signed [IW-1:0] real_out_r, imag_r;
+    (* use_dsp = "no" *) logic signed [IW-1:0] real_out_r, imag_r;
     logic                  v4;
 
     always_ff @(posedge clk) begin
@@ -144,7 +144,8 @@ module cmult_3dsp #(
 
     // ======== Cycle 5: Round bias + shift ((x + 2^14) >>> 15) ========
     // 匹配 MATLAB round(x/32767)：加 2^14 偏置后右移 15 位
-    logic signed [IW:0] rounded_re, rounded_im;     // +1 位防 bias 溢出
+    // (偏置加法强制 LUT, 不用 DSP48 ALU)
+    (* use_dsp = "no" *) logic signed [IW:0] rounded_re, rounded_im;
     logic               v5;
 
     always_ff @(posedge clk) begin
