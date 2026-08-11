@@ -196,24 +196,22 @@ module da_data_gen #(
         else              vio_dds0_en_rise_reg <= {vio_dds0_en_rise_reg[6:0], ~vio_dds0_en_reg & vio_dds0_en};
     end
     wire vio_dds0_en_rise = |vio_dds0_en_rise_reg;
-    // rst_bf_request: apply 或 VIO 使能触发 → 拉高 16 拍 (两片协调通知)。
-    // 16 拍展宽: 主控跨时钟域可靠检测 (原 1 拍脉冲太窄会丢)。
-    logic [4:0] req_cnt;
-    logic       req_q;
+
+   
+    logic       req_st;
     always_ff @(posedge dac_coreclk) begin
-        if (rst_dac_sync) begin
-            req_q   <= 1'b0;
-            req_cnt <= '0;
-        end else if (cfg_apply_pulse || vio_dds0_en_rise) begin
-            req_q   <= 1'b1;
-            req_cnt <= 5'd16;
-        end else if (req_cnt != 0) begin
-            req_cnt <= req_cnt - 1'b1;   // 保持拉高 16 拍
-        end else begin
-            req_q <= 1'b0;
-        end
+        case(req_st)
+        0:  begin rst_bf_request<=0;
+            if (cfg_apply_pulse || vio_dds0_en_rise) 
+                req_st   <= 1'b1;
+                end
+        1:  begin rst_bf_request<=1;
+            if (rst_bf_pulse) 
+                req_st   <= 1'b0;
+            end
+        endcase
     end
-    assign rst_bf_request = req_q;
+
     // 内部基带 DDS (复用 dds_core_tx_bf_4base): {相位, 频率字}
     wire [31:0] base_tdata;
     dds_core_tx_bf_4base u_dds_base (

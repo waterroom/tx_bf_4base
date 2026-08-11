@@ -48,7 +48,7 @@ module dds_multi_phase_wrap #(
     assign freq_word = phase_inc << N_PAR_LOG2;
 
     for (genvar p = 0; p < N_PAR; p++) begin : g_dds
-        dds_core u_dds (
+        dds_core_tx_bf_4base u_dds (
             .aclk                (clk),
             .aclken              (1'b1),
             .aresetn             (~rst),
