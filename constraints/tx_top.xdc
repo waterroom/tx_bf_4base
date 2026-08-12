@@ -26,25 +26,18 @@ set_false_path -from [get_clocks cmd_clk]     -to [get_clocks dac_coreclk]
 set_false_path -from [get_clocks dac_coreclk] -to [get_clocks cmd_clk]
 
 # ---------- 4. 配置寄存器 (静态配置, false_path) ----------
-# decode_cmd_tx_bf 内的配置寄存器 (delay/weight/FIR 系数/phase) 为静态配置,
-# 只在 apply 时更新, 不参与数据路径时序收敛
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*delay_reg*}]
+# decode_cmd_tx_bf 内实际寄存器名: delay_val/delay_val_temp/phase_inc/phase_offset/
+# wre_reg/wim_reg/fir_coef 等, 只在 apply 时更新, 不参与数据路径时序收敛
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*delay_val*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*phase_inc*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*phase_offset*}]
 set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*wre_reg*}]
 set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*wim_reg*}]
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*pinc_reg*}]
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*poff_reg*}]
-set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*fir_*coef*}]
+set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*fir_coef*}]
 
 # ---------- 5. 复位树扇出限制 ----------
 # 数据路径复位 rst_tx 高扇出到 DSP/FF RST 引脚, 限制扇出让综合器复制
 set_property MAX_FANOUT 512 [get_nets -hier -filter {NAME =~ *rst_tx*}]
-
-# ---------- 6. 内部 8 并行总线对齐 (内插 → 混频) ----------
-# 8 并行样本总线 (288bit 复数) 需要位间对齐
-set_bus_skew -from [get_cells -hier -filter {NAME =~ *u_fir_i*g_out*s3*}] \
-             -to   [get_cells -hier -filter {NAME =~ *u_mix*u_cmult*}] 0.0
-set_max_delay -from [get_cells -hier -filter {NAME =~ *u_fir_i*g_out*s3*}] \
-              -to   [get_cells -hier -filter {NAME =~ *u_mix*u_cmult*}] 3.333
 
 # ---------- 7. 输入输出延时 (按实际来源/去向约束) ----------
 # 基带输入: 外部提供 4 路基带 (300MHz), 按实际时序

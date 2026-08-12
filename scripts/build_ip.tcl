@@ -1,9 +1,13 @@
 # =============================================================================
-# build_ip.tcl  --  生成 Xilinx IP (FIR Compiler / DDS Compiler / RF Data Converter)
+# ⚠️ 已废弃 (2026-08): 本脚本生成的是旧 48 抽头单级结构
+#   (fir_compiler_8x / dds_compiler_lo, 引用 ip/coef/*.coe 不存在)。
+#   当前 RTL 使用 3 级半带内插 IP (fir_300to600/fir_600to1200/
+#   fir_1200to2400_87p5pass_hf) + dds_core_tx_bf_4base, 全部在
+#   vivado_sim 工程内管理 (sources_1/ip/), 不需要本脚本。
+#   且 part 型号 xczu48dr-fsvb1156-2-e 与当前工程 ffvg1517 不一致,
+#   即使运行也无效。保留仅供旧结构参考, 请勿再运行。
 # =============================================================================
-# 用法: vivado -mode batch -source scripts/build_ip.tcl
-# 注: FIR/DDS IP 用于综合优化 (节省 DSP); 当前 RTL 用可综合手写模块替代, 
-#     可先不生成 IP 进行仿真。综合量产时生成 IP 并定义 USE_XILINX_FIR_IP 宏。
+# build_ip.tcl  --  生成 Xilinx IP (旧结构, 已废弃)
 # =============================================================================
 
 set proj_name "tx_bf_4base_ip"

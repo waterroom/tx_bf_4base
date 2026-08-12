@@ -198,19 +198,24 @@ module da_data_gen #(
     wire vio_dds0_en_rise = |vio_dds0_en_rise_reg;
 
    
-    logic       req_st;
-    always_ff @(posedge dac_coreclk) begin
-        case(req_st)
-        0:  begin rst_bf_request<=0;
-            if (cfg_apply_pulse || vio_dds0_en_rise) 
-                req_st   <= 1'b1;
-                end
-        1:  begin rst_bf_request<=1;
-            if (rst_bf_pulse) 
-                req_st   <= 1'b0;
-            end
-        endcase
-    end
+logic req_st;
+always_ff @(posedge dac_coreclk) begin
+    if (rst_dac_sync) begin
+        req_st <= 0;
+        rst_bf_request <= 0;        // ← 补上：复位时 request 也归 0
+    end else case (req_st)
+        0: begin
+            rst_bf_request <= 0;
+            if (cfg_apply_pulse || vio_dds0_en_rise)
+                req_st <= 1'b1;
+        end
+        1: begin
+            rst_bf_request <= 1;
+            if (rst_bf_pulse)
+                req_st <= 1'b0;
+        end
+    endcase
+end
 
     // 内部基带 DDS (复用 dds_core_tx_bf_4base): {相位, 频率字}
     wire [31:0] base_tdata;
@@ -247,7 +252,8 @@ module da_data_gen #(
         for (int b = 0; b < N_BEAM; b++) begin
             bb_i_arr[b]    = bb_i_eff[b*DATA_W +: DATA_W];
             bb_q_arr[b]    = bb_q_eff[b*DATA_W +: DATA_W];
-            bb_valid_arr[b] = bb_valid[b];   // 向量 → 数组 (tx_top 端口是数组)
+            // VIO 使能时强制 valid: 无外部基带 (bb_valid=0) 也能输出模拟基带
+            bb_valid_arr[b] = bb_valid[b] | vio_dds0_en;
         end
     end
     tx_top u_tx (
