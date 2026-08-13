@@ -11,7 +11,9 @@
 //   - 支持 valid 流水（valid 一同移位，保持帧对齐）
 //   - delay_val 实时可变，建议与数据同步更新
 //   - 复用为单通道：N=1 时退化为单根延迟线
-//   - 输出延时为delay_val+2
+//   - 输出延时: 行为仿真 delay_val+2 (shift_mem[0][0] 是寄存器);
+//     综合成 SRLC32E 后 A=0 时 Q 组合直通 D → 硬件 delay_val+1 (差 1 拍,
+//     后仿/上板为准, 需文档化对齐)
 // 结构（避免大深度下 1025:1 单片 mux 的边界路径）：
 //   存储按每段 32 深分段（SRL32 深度），段内用 sel_r[4:0] 地址读
 //   （映射各 SRL 的地址线 Q 输出），段间级联，再用 sel_r 高位做
@@ -20,7 +22,8 @@
 //   延迟语义与单段结构完全一致（sel_r 提前寄存 + 输出寄存）。
 // 参数：
 //   DATA_W    : I/Q 各自位宽
-//   MAX_DEPTH : 最大延迟深度（采样周期数），默认 64，可扩展至 1024
+//   MAX_DEPTH : 最大延迟深度（采样周期数），默认 64，可扩展至 1024;
+//              下限 32 (SEG_IDX_W≥1, <32 时零宽 part-select 非法)
 // =============================================================================
 
 `ifndef INT_DELAY_SV
@@ -95,18 +98,14 @@ module int_delay #(
         end
     end
 
-    // 二级选择：按段号 N_SEG 选 1（LUT 树，而非 (MAX_DEPTH+1):1 单片 mux）
+    // 二级选择：按段号 N_SEG 选 1（直接索引 → 综合器做平衡 mux 树;
+    // 原 if 链是 33 级优先级 mux, 组合路径长且不保证重平衡）
+    // 越界安全: sel_r 已钳制 ≤ MAX_DEPTH, 段号 ≤ MAX_DEPTH>>5 = N_SEG-1
     logic [STG_W-1:0] data_sel;
     logic             valid_sel;
     always_comb begin
-        data_sel  = tap[0];
-        valid_sel = tap_v[0];
-        for (int j = 1; j < N_SEG; j++) begin
-            if (sel_r[SEG_BITS +: SEG_IDX_W] == j[SEG_IDX_W-1:0]) begin
-                data_sel  = tap[j];
-                valid_sel = tap_v[j];
-            end
-        end
+        data_sel  = tap[sel_r[SEG_BITS +: SEG_IDX_W]];
+        valid_sel = tap_v[sel_r[SEG_BITS +: SEG_IDX_W]];
     end
 
     // 输出寄存
