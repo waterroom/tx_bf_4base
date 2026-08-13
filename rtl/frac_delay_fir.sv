@@ -182,24 +182,32 @@ module frac_delay_fir #(
         end
     end
 
-    // -------------- 加法树 (4 级流水, 时序友好) ------------------------------
+    // -------------- 加法树 (4 级流水, 位宽逐级递增) ------------------------------
     // 16→8→4→2→1，每级只有 1 个加法器，单级路径短
-    localparam int unsigned PROD_W = DATA_W + COEF_W;
-    localparam int unsigned EXTW   = (ACC_W_LOCAL > PROD_W) ? (ACC_W_LOCAL - PROD_W) : 0;
+    // 位宽优化 (时序): 乘法输出 32bit 全宽在 LUT 加法树里 37bit 进位链
+    // 时序紧 (1.28ns Logic + 1.83ns Net, 687 违例)。乘法输出先右移
+    // TRUNC_SHIFT=12 截到 20bit (精度 -120dB 远高于 18bit 输出需求),
+    // 加法树逐级 21/22/23/24bit — Logic Delay 大降 + fanout 收窄。
+    localparam int unsigned PROD_W       = DATA_W + COEF_W;           // 32
+    localparam int unsigned TRUNC_SHIFT  = 12;                        // prod 截位量
+    localparam int unsigned PROD20_W     = PROD_W - TRUNC_SHIFT;      // 20
+    localparam int unsigned L0_W         = PROD20_W + 1;              // 21 (2 tap)
+    localparam int unsigned L1_W         = L0_W + 1;                  // 22 (4 tap)
+    localparam int unsigned L2_W         = L1_W + 1;                  // 23 (8 tap)
+    localparam int unsigned L3_W         = L2_W + 1;                  // 24 (16 tap)
+    // 输出标度: prod>>12 后 sum×2^12/32767 ≈ sum/8 (32767≈2^15, 2^12/2^15=1/8)
 
-    // 加法树: 强制 LUT (use_dsp=no) — 37bit 宽加法会被综合器映射到
-    // DSP (DSP48 ALU 48bit), 导致模块 DSP 46 = 32 乘法 + ~14 加法。
-    // 加法树用 LUT 实现 (F7/F8 mux), DSP 只留给 32 个乘法器。
-    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_0 [0:7];
-    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_im_0 [0:7];
+    // 加法树: 强制 LUT (use_dsp=no) — 加法会映射 DSP48 ALU, DSP 只留乘法
+    (* use_dsp = "no" *) logic signed [L0_W-1:0] tree_re_0 [0:7];
+    (* use_dsp = "no" *) logic signed [L0_W-1:0] tree_im_0 [0:7];
     // Level 1: 8 → 4
-    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_1 [0:3];
-    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_im_1 [0:3];
+    (* use_dsp = "no" *) logic signed [L1_W-1:0] tree_re_1 [0:3];
+    (* use_dsp = "no" *) logic signed [L1_W-1:0] tree_im_1 [0:3];
     // Level 2: 4 → 2
-    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_2 [0:1];
-    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_im_2 [0:1];
+    (* use_dsp = "no" *) logic signed [L2_W-1:0] tree_re_2 [0:1];
+    (* use_dsp = "no" *) logic signed [L2_W-1:0] tree_im_2 [0:1];
     // Level 3: 2 → 1
-    (* use_dsp = "no" *) logic signed [ACC_W_LOCAL-1:0] tree_re_3, tree_im_3;
+    (* use_dsp = "no" *) logic signed [L3_W-1:0] tree_re_3, tree_im_3;
 
     genvar i;
     generate
@@ -210,10 +218,10 @@ module frac_delay_fir #(
                     tree_re_0[i] <= '0;
                     tree_im_0[i] <= '0;
                 end else begin
-                    tree_re_0[i] <= {{EXTW{prod_re_r[2*i][PROD_W-1]}}, prod_re_r[2*i]}
-                                 + {{EXTW{prod_re_r[2*i+1][PROD_W-1]}}, prod_re_r[2*i+1]};
-                    tree_im_0[i] <= {{EXTW{prod_im_r[2*i][PROD_W-1]}}, prod_im_r[2*i]}
-                                 + {{EXTW{prod_im_r[2*i+1][PROD_W-1]}}, prod_im_r[2*i+1]};
+                    tree_re_0[i] <= (prod_re_r[2*i]   >>> TRUNC_SHIFT)
+                                 + (prod_re_r[2*i+1] >>> TRUNC_SHIFT);
+                    tree_im_0[i] <= (prod_im_r[2*i]   >>> TRUNC_SHIFT)
+                                 + (prod_im_r[2*i+1] >>> TRUNC_SHIFT);
                 end
             end
         end
@@ -256,22 +264,23 @@ module frac_delay_fir #(
     // tree_re_3 / tree_im_3 即为累加结果
 
     // -------------- Stage 4a: 偏置 + 寄存（时序友好） ----------------
-    logic signed [ACC_W_LOCAL:0] biased_re, biased_im;
+    // 输出标度: sum(prod>>12) × 2^12 / 32767 ≈ sum / 8 → bias 4 (round), >>>3
+    logic signed [L3_W:0] biased_re, biased_im;
     always_ff @(posedge clk) begin
         if (rst) begin
             biased_re <= '0;
             biased_im <= '0;
         end else begin
-            biased_re <= {tree_re_3[ACC_W_LOCAL-1], tree_re_3} + (1 <<< 14);  // +2^14 偏置
-            biased_im <= {tree_im_3[ACC_W_LOCAL-1], tree_im_3} + (1 <<< 14);
+            biased_re <= {tree_re_3[L3_W-1], tree_re_3} + (1 <<< 2);  // +4 偏置 (round /8)
+            biased_im <= {tree_im_3[L3_W-1], tree_im_3} + (1 <<< 2);
         end
     end
 
     // -------------- Stage 4b: 移位 + 饱和 + 寄存（时序友好） --------
-    function automatic logic signed [OUT_W-1:0] sat(input logic signed [ACC_W_LOCAL:0] v);
-        logic signed [ACC_W_LOCAL:0] shifted;
+    function automatic logic signed [OUT_W-1:0] sat(input logic signed [L3_W:0] v);
+        logic signed [L3_W:0] shifted;
         begin
-            shifted = signed'(v >>> 15);  // 右移 15 位（除以 32767）
+            shifted = signed'(v >>> 3);  // 右移 3 位 (÷8, 对应 prod 截 12bit 标度)
             // 饱和到 OUT_W 位有符号范围
             if (shifted > $signed({1'b0, {(OUT_W-1){1'b1}}}))
                 return {1'b0, {(OUT_W-1){1'b1}}};  // +max
