@@ -10,8 +10,9 @@
 // 1 个 36K BRAM (33 bit {valid,im,re} × 1024 深), 32 实例 = 32 BRAM (<3%),
 // 彻底消除 LUTRAM pack 问题。
 //
-// 延迟语义: delay_val + 2 (BRAM 同步读 1 拍 + 输出寄存 1 拍)。
+// 延迟语义: delay_val + 3 (读指针寄存 1 拍 + BRAM 同步读 1 拍 + 输出寄存 1 拍)。
 // 硬件与行为仿真一致 (BRAM 读固定 1 拍, 无 SRL A=0 直通差异)。
+// 读指针寄存: 减法单独一拍 (wr_ptr-delay 组合 + BRAM 地址同拍会紧时序)。
 //
 // 参数:
 //   DATA_W    : I/Q 各自位宽
@@ -49,7 +50,7 @@ module int_delay #(
         for (int i = 0; i < DEPTH; i++) mem[i] = '0;
     end
 
-    logic [PTR_W-1:0] wr_ptr, rd_ptr;
+    logic [PTR_W-1:0] wr_ptr;
 
     // 写: 指针递增 (2 的幂自然回绕), 数据+valid 同址写入
     always_ff @(posedge clk) begin
@@ -62,12 +63,17 @@ module int_delay #(
     end
 
     // 读指针 = wr_ptr - delay (模 2^PTR_W; delay 已钳制 ≤ MAX_DEPTH ≤ DEPTH)
-    assign rd_ptr = wr_ptr - delay_val[PTR_W-1:0];
+    // 寄存一拍: 减法单独一拍, 避免 wr_ptr→减法→BRAM 地址 同拍长路径
+    logic [PTR_W-1:0] rd_ptr_r;
+    always_ff @(posedge clk) begin
+        if (rst) rd_ptr_r <= '0;
+        else     rd_ptr_r <= wr_ptr - delay_val[PTR_W-1:0];
+    end
 
-    // BRAM 同步读 (地址自动寄存, 读延迟 1 拍)
+    // BRAM 同步读 (地址已寄存, 读延迟 1 拍)
     logic [STG_W:0] rd_data_r;
     always_ff @(posedge clk) begin
-        rd_data_r <= mem[rd_ptr];
+        rd_data_r <= mem[rd_ptr_r];
     end
 
     // 输出寄存 (延迟 +1 拍)
