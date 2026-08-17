@@ -48,7 +48,9 @@ module cmult_3dsp #(
 
     localparam int unsigned P_W  = A_W + B_W;       // P0/P1 位宽
     localparam int unsigned P2_W = P_W + 2;         // P2 位宽 (17×17 = 34bit)
-    localparam int unsigned IW   = P_W + 2;         // 内部统一位宽
+    localparam int unsigned TRUNC_SHIFT = 12;       // 乘积截位量 (32/34bit → 20/22bit)
+    // 内部统一位宽: 截位后 (p2>>12=22bit) - (p0>>12=20bit) = 24bit 足够
+    localparam int unsigned IW   = 24;
 
     // ======== Cycle 0: Input register ========
     logic signed [A_W-1:0] a_re_r, a_im_r;
@@ -109,8 +111,10 @@ module cmult_3dsp #(
     always_ff @(posedge clk) begin
         if (rst) begin real_r <= '0; temp_r <= '0; p1_r <= '0; v3 <= 1'b0; end
         else begin
-            real_r <= {{(IW-P_W){p0[P_W-1]}}, p0} - {{(IW-P_W){p1[P_W-1]}}, p1};  // P0 - P1
-            temp_r <= {{(IW-P2_W){p2[P2_W-1]}}, p2} - {{(IW-P_W){p0[P_W-1]}}, p0}; // P2 - P0
+            // 截位 12bit: 34bit 宽减法 levels 8 → 24bit ~6 (精度 -120dB 足够,
+            // 输出 16/18bit; 与 frac_delay_fir 同模式)
+            real_r <= (p0 >>> TRUNC_SHIFT) - (p1 >>> TRUNC_SHIFT);        // P0-P1
+            temp_r <= (p2 >>> TRUNC_SHIFT) - (p0 >>> TRUNC_SHIFT);        // P2-P0
             p1_r   <= p1;
             v3 <= v2;
         end
@@ -124,13 +128,13 @@ module cmult_3dsp #(
         if (rst) begin real_out_r <= '0; imag_r <= '0; v4 <= 1'b0; end
         else begin
             real_out_r <= real_r;
-            imag_r     <= temp_r - {{(IW-P_W){p1_r[P_W-1]}}, p1_r};  // (P2-P0) - P1
+            imag_r     <= temp_r - (p1_r >>> TRUNC_SHIFT);  // (P2-P0) - P1
             v4 <= v3;
         end
     end
 
-    // ======== Cycle 5: Round bias + shift ((x + 2^14) >>> 15) ========
-    // 匹配 MATLAB round(x/32767)：加 2^14 偏置后右移 15 位
+    // ======== Cycle 5: Round bias + shift ((x + 4) >>> 3) ========
+    // 截位 12bit 后标度: sum×2^12/32767 ≈ sum/8 → bias 4 (round), >>>3
     // (偏置加法强制 LUT, 不用 DSP48 ALU)
     (* use_dsp = "no" *) logic signed [IW:0] rounded_re, rounded_im;
     logic               v5;
@@ -138,8 +142,9 @@ module cmult_3dsp #(
     always_ff @(posedge clk) begin
         if (rst) begin rounded_re <= '0; rounded_im <= '0; v5 <= 1'b0; end
         else begin
-            rounded_re <= {real_out_r[IW-1], real_out_r} + (1 <<< 14);
-            rounded_im <= {imag_r[IW-1], imag_r} + (1 <<< 14);
+            // 标度: sum>>12 后 ×2^12/32767 ≈ ÷8 → bias 4, >>>3
+            rounded_re <= {real_out_r[IW-1], real_out_r} + (1 <<< 2);
+            rounded_im <= {imag_r[IW-1], imag_r} + (1 <<< 2);
             v5 <= v4;
         end
     end
@@ -148,7 +153,7 @@ module cmult_3dsp #(
     function automatic logic signed [OUT_W-1:0] sat(input logic signed [IW:0] v);
         logic signed [IW:0] shifted;
         begin
-            shifted = signed'(v >>> 15);            // 右移 15 位
+            shifted = signed'(v >>> 3);             // 右移 3 位 (÷8, 对应截位标度)
             if (shifted >  $signed({1'b0, {(OUT_W-1){1'b1}}})) return {1'b0, {(OUT_W-1){1'b1}}};
             if (shifted < -$signed({1'b0, {(OUT_W-1){1'b1}}})) return {1'b1, {(OUT_W-1){1'b0}}};
             return shifted[OUT_W-1:0];
