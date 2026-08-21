@@ -111,10 +111,13 @@ module da_data_gen #(
         if (rst_dac_sync) rst_bf_filt_r <= 0;
         else              rst_bf_filt_r <= rst_bf_filt;
     end
-    assign rst_bf_pulse = rst_bf_filt & ~rst_bf_filt_r;
+    // rst_bf_pulse 寄存器化 (消除组合竞争, 时序更稳)
+    always_ff @(posedge dac_coreclk) rst_bf_pulse <= rst_bf_filt & ~rst_bf_filt_r;
     // 数据路径复位: 上电复位 OR rst_bf 触发定时复位 (RST_BF_WIDTH 拍)
-    logic [$clog2(RST_BF_WIDTH)-1:0] rst_bf_cnt;
-    logic rst_tx;
+    // max_fanout=800: rst_tx 扇出 92134 (全部数据路径 FF 复位), 综合器
+    // 复制 ~115 份复位驱动分摊; rst_bf_cnt 同 (b 工程验证有效)
+    (* max_fanout=800 *) logic [$clog2(RST_BF_WIDTH)-1:0] rst_bf_cnt;
+    (* max_fanout=800 *) logic rst_tx;
     always_ff @(posedge dac_coreclk) begin
         if (rst_dac_sync) begin
             rst_bf_cnt <= '0;
