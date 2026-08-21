@@ -1,24 +1,24 @@
 # =====================================================================
-# import_tx_bf_4base.tcl - tx_bf_4base 4 æ³¢æŸ DBF å‘å°„æœº å¯¼å…¥/æ›´æ–°è„šæœ¬
+# import_tx_bf_4base.tcl - tx_bf_4base 4 ²¨Êø DBF ·¢Éä»ú µ¼Èë/¸üĞÂ½Å±¾
 #
-# ç”¨æ³•ï¼šæ‰“å¼€ç›®æ ‡ Vivado å·¥ç¨‹ï¼ˆå¦‚ ZU48_F1/F2_V100_4P8G_sync_260729ï¼‰åï¼Œ
-#       åœ¨ Tcl Console æ‰§è¡Œä¸€æ¬¡ï¼š
+# ÓÃ·¨£º´ò¿ªÄ¿±ê Vivado ¹¤³Ì£¨Èç ZU48_F1/F2_V100_4P8G_sync_260729£©ºó£¬
+#       ÔÚ Tcl Console Ö´ĞĞÒ»´Î£º
 #   source C:/workbuddy_chat/tx_bf_4base/scripts/import_tx_bf_4base.tcl
 #
-# åŠŸèƒ½ï¼ˆå¹‚ç­‰ï¼Œå¯é‡å¤æ‰§è¡Œï¼‰ï¼š
-#   1. åˆ é™¤å·¥ç¨‹å†…æ—§çš„ tx_bf æºæ–‡ä»¶ï¼ˆ17 ä¸ª rtl .svï¼‰
-#   2. åˆ é™¤æ—§ TBï¼ˆtb_da_data_gen.sv / tb_decode_cmd_tx_bf.sv / tb_tx_top.svï¼‰
-#   3. åˆ é™¤æ—§ IPï¼ˆ3 ä¸ªåŠå¸¦ FIR + dds_core_tx_bf_4base + vio_dacï¼‰
-#   4. é‡æ–°å¯¼å…¥ rtl/*.svï¼ˆå¤åˆ¶è¿›å·¥ç¨‹ srcs/imports/tx_bf_4baseï¼‰
-#   5. é‡æ–°å¯¼å…¥ TBï¼ˆä»…ä»¿çœŸï¼Œä¸å‚ä¸ç»¼åˆï¼‰
-#   6. é‡æ–°å¯¼å…¥ IPï¼ˆå¤åˆ¶ xci è¿›å·¥ç¨‹å¹¶ generateï¼‰
+# ¹¦ÄÜ£¨ÃİµÈ£¬¿ÉÖØ¸´Ö´ĞĞ£©£º
+#   1. É¾³ı¹¤³ÌÄÚ¾ÉµÄ tx_bf Ô´ÎÄ¼ş£¨17 ¸ö rtl .sv£©
+#   2. É¾³ı¾É TB£¨tb_da_data_gen.sv / tb_decode_cmd_tx_bf.sv / tb_tx_top.sv£©
+#   3. É¾³ı¾É IP£¨3 ¸ö°ë´ø FIR + dds_core_tx_bf_4base + vio_dac£©
+#   4. ÖØĞÂµ¼Èë rtl/*.sv£¨¸´ÖÆ½ø¹¤³Ì srcs/imports/tx_bf_4base£©
+#   5. ÖØĞÂµ¼Èë TB£¨½ö·ÂÕæ£¬²»²ÎÓë×ÛºÏ£©
+#   6. ÖØĞÂµ¼Èë IP£¨¸´ÖÆ xci ½ø¹¤³Ì²¢ generate£©
 #
-# è¯´æ˜ï¼š
-#   - æºæ–‡ä»¶å¤åˆ¶è¿›å·¥ç¨‹ï¼ˆsrcs/imports/ï¼‰ï¼Œ.xpr è®°å½•å·¥ç¨‹å†…è·¯å¾„ï¼Œ
-#     å·¥ç¨‹ç§»åŠ¨/åŸç›®å½•åˆ é™¤ä¸å—å½±å“ï¼›tx_bf_4base æ›´æ–°åé‡è·‘æœ¬è„šæœ¬å³åŒæ­¥
-#   - tx_bf_pkg.sv ä¸º SV packageï¼ˆå‚æ•°åŒ…ï¼‰ï¼ŒVivado è‡ªåŠ¨æŒ‰ä¾èµ–ç¼–è¯‘ï¼Œ
-#     æ— éœ€æ‰‹åŠ¨è®¾ç½®ç¼–è¯‘é¡ºåº
-#   - IP éœ€å™¨ä»¶åŒ¹é…ï¼ˆZU48DR ç³»åˆ—ï¼‰ï¼›ç›®æ ‡å·¥ç¨‹å™¨ä»¶ä¸åŒéœ€é‡æ–°ç”Ÿæˆ
+# ËµÃ÷£º
+#   - Ô´ÎÄ¼ş¸´ÖÆ½ø¹¤³Ì£¨srcs/imports/£©£¬.xpr ¼ÇÂ¼¹¤³ÌÄÚÂ·¾¶£¬
+#     ¹¤³ÌÒÆ¶¯/Ô­Ä¿Â¼É¾³ı²»ÊÜÓ°Ïì£»tx_bf_4base ¸üĞÂºóÖØÅÜ±¾½Å±¾¼´Í¬²½
+#   - tx_bf_pkg.sv Îª SV package£¨²ÎÊı°ü£©£¬Vivado ×Ô¶¯°´ÒÀÀµ±àÒë£¬
+#     ÎŞĞèÊÖ¶¯ÉèÖÃ±àÒëË³Ğò
+#   - IP ĞèÆ÷¼şÆ¥Åä£¨ZU48DR ÏµÁĞ£©£»Ä¿±ê¹¤³ÌÆ÷¼ş²»Í¬ĞèÖØĞÂÉú³É
 # =====================================================================
 
 set bf_src  "C:/workbuddy_chat/tx_bf_4base/rtl"
@@ -34,51 +34,51 @@ set import_dir [file join $proj_dir "${proj_name}.srcs" "sources_1" "imports" "t
 file mkdir $import_dir
 
 # ---------------------------------------------------------------
-# 1. åˆ é™¤æ—§ tx_bf æºæ–‡ä»¶ï¼ˆæŒ‰æ–‡ä»¶ååŒ¹é…ï¼‰
+# 1. É¾³ı¾É tx_bf Ô´ÎÄ¼ş£¨°´ÎÄ¼şÃûÆ¥Åä£©
 # ---------------------------------------------------------------
 set old_src [get_files -quiet $bf_rtl_pat]
 if {[llength $old_src] > 0} {
     remove_files $old_src
-    puts "åˆ é™¤æ—§æºæ–‡ä»¶: [llength $old_src] ä¸ª"
+    puts "É¾³ı¾ÉÔ´ÎÄ¼ş: [llength $old_src] ¸ö"
 } else {
-    puts "æ— æ—§æºæ–‡ä»¶éœ€åˆ é™¤"
+    puts "ÎŞ¾ÉÔ´ÎÄ¼şĞèÉ¾³ı"
 }
 
 # ---------------------------------------------------------------
-# 2. åˆ é™¤æ—§ TB
+# 2. É¾³ı¾É TB
 # ---------------------------------------------------------------
 set old_tb [get_files -quiet $bf_tb_pat]
 if {[llength $old_tb] > 0} {
     remove_files $old_tb
-    puts "åˆ é™¤æ—§ TB: [llength $old_tb] ä¸ª"
+    puts "É¾³ı¾É TB: [llength $old_tb] ¸ö"
 } else {
-    puts "æ— æ—§ TB éœ€åˆ é™¤"
+    puts "ÎŞ¾É TB ĞèÉ¾³ı"
 }
 
 # ---------------------------------------------------------------
-# 3. åˆ é™¤æ—§ IPï¼ˆ5 ä¸ªï¼š3 åŠå¸¦ FIR + DDS + VIOï¼‰
+# 3. É¾³ı¾É IP£¨5 ¸ö£º3 °ë´ø FIR + DDS + VIO£©
 # ---------------------------------------------------------------
 foreach ipn $bf_ip_names {
     set old_ip [get_files -quiet -all *${ipn}.xci]
     if {[llength $old_ip] > 0} {
         remove_files $old_ip
-        puts "åˆ é™¤æ—§ IP: $ipn"
+        puts "É¾³ı¾É IP: $ipn"
     }
 }
 
 # ---------------------------------------------------------------
-# 4. é‡æ–°å¯¼å…¥ RTL æºæ–‡ä»¶ï¼ˆå¤åˆ¶è¿›å·¥ç¨‹ï¼Œä¸ä¾èµ–åŸè·¯å¾„ï¼‰
+# 4. ÖØĞÂµ¼Èë RTL Ô´ÎÄ¼ş£¨¸´ÖÆ½ø¹¤³Ì£¬²»ÒÀÀµÔ­Â·¾¶£©
 # ---------------------------------------------------------------
 set files [glob -nocomplain $bf_src/*.sv]
 if {[llength $files] > 0} {
     add_files -norecurse -force -copy_to $import_dir $files
-    puts "å¯¼å…¥æºæ–‡ä»¶ [llength $files] ä¸ªï¼ˆå¤åˆ¶åˆ° $import_dirï¼‰"
+    puts "µ¼ÈëÔ´ÎÄ¼ş [llength $files] ¸ö£¨¸´ÖÆµ½ $import_dir£©"
 } else {
-    puts "è­¦å‘Š: $bf_src ä¸‹æ—  .sv æ–‡ä»¶"
+    puts "¾¯¸æ: $bf_src ÏÂÎŞ .sv ÎÄ¼ş"
 }
 
 # ---------------------------------------------------------------
-# 5. é‡æ–°å¯¼å…¥ TBï¼ˆä»…ä»¿çœŸï¼Œä¸å‚ä¸ç»¼åˆï¼‰
+# 5. ÖØĞÂµ¼Èë TB£¨½ö·ÂÕæ£¬²»²ÎÓë×ÛºÏ£©
 # ---------------------------------------------------------------
 set tbs [glob -nocomplain $bf_tb/*.sv]
 if {[llength $tbs] > 0} {
@@ -86,28 +86,39 @@ if {[llength $tbs] > 0} {
     foreach tb $bf_tb_pat {
         set_property USED_IN_SYNTHESIS false [get_files -quiet $tb]
     }
-    puts "å¯¼å…¥ TB [llength $tbs] ä¸ªï¼ˆä»…ä»¿çœŸï¼Œå¤åˆ¶åˆ° $import_dirï¼‰"
+    puts "µ¼Èë TB [llength $tbs] ¸ö£¨½ö·ÂÕæ£¬¸´ÖÆµ½ $import_dir£©"
 }
 
 # ---------------------------------------------------------------
-# 6. é‡æ–°å¯¼å…¥ IPï¼ˆå¤åˆ¶ xci è¿›å·¥ç¨‹å¹¶ç”Ÿæˆï¼‰
+# 6. ÖØĞÂµ¼Èë IP£¨¸´ÖÆ xci ½ø¹¤³Ì²¢Éú³É£©
 # ---------------------------------------------------------------
 set xcis [glob -nocomplain $bf_ip/*/*.xci]
 if {[llength $xcis] > 0} {
     add_files -norecurse -force -copy_to $import_dir $xcis
-    puts "å¯¼å…¥ IP [llength $xcis] ä¸ªï¼ˆå¤åˆ¶ xci åˆ° $import_dirï¼‰"
-    set new_ips [get_ips]
-    if {[llength $new_ips] > 0} {
-        generate_target all $new_ips
-        puts "IP ç”Ÿæˆå®Œæˆ: [llength $new_ips] ä¸ª"
+    puts "µ¼Èë IP [llength $xcis] ¸ö£¨¸´ÖÆ xci µ½ $import_dir£©"
+    # Ö»´¦ÀíĞÂµ¼ÈëµÄ IP£¨±ÜÃâÎóÉú³É BD ÄÚÇ¶Ì× IP Èç design_1_axi_emc_0_0£©
+    foreach xci $xcis {
+        set ipn [file tail [file dirname $xci]]
+        set ip_objs [get_ips -quiet -all $ipn]
+        if {[llength $ip_objs] > 0} {
+            # Æ÷¼ş²»Æ¥Åä(Ëø¶¨)Ê± upgrade µ½µ±Ç° part (fsvg1517 vs ffvg1517)
+            if {[get_property IS_LOCKED $ip_objs]} {
+                catch {upgrade_ip -quiet $ip_objs}
+                puts "  IP Éı¼¶(Æ÷¼şÊÊÅä): $ipn"
+            }
+            generate_target all $ip_objs
+            puts "  IP Éú³É: $ipn"
+        }
     }
+    puts "IP ´¦ÀíÍê³É: [llength $xcis] ¸ö"
 } else {
-    puts "è­¦å‘Š: $bf_ip ä¸‹æ—  .xci æ–‡ä»¶"
+    puts "¾¯¸æ: $bf_ip ÏÂÎŞ .xci ÎÄ¼ş"
 }
 
 puts ""
-puts "=== tx_bf_4base å¯¼å…¥å®Œæˆ ==="
-puts "  æºæ–‡ä»¶: [llength $files] ä¸ª rtl"
-puts "  TB:     [llength $tbs] ä¸ªï¼ˆä»…ä»¿çœŸï¼‰"
-puts "  IP:     [llength $xcis] ä¸ªï¼ˆfir_300/600/1200 + dds_core + vio_dacï¼‰"
-puts "  æç¤º: ä»¿çœŸ Top è®¾ä¸º tb_da_data_gen åå¯ Run Simulation"
+puts "=== tx_bf_4base µ¼ÈëÍê³É ==="
+puts "  Ô´ÎÄ¼ş: [llength $files] ¸ö rtl"
+puts "  TB:     [llength $tbs] ¸ö£¨½ö·ÂÕæ£©"
+puts "  IP:     [llength $xcis] ¸ö£¨fir_300/600/1200 + dds_core + vio_dac£©"
+puts "  ÌáÊ¾: ·ÂÕæ Top ÉèÎª tb_da_data_gen ºó¿É Run Simulation;"
+puts "  ÌáÊ¾: IP ÈôÆ÷¼ş²»Æ¥ÅäÒÑ×Ô¶¯ upgrade, È·ÈÏÎŞ ERROR ¼´¿É×ÛºÏ"
