@@ -321,6 +321,89 @@ end
                                dac_q_8p_int[7][3], dac_i_8p_int[7][3], dac_q_8p_int[7][2], dac_i_8p_int[7][2],
                                dac_q_8p_int[7][1], dac_i_8p_int[7][1], dac_q_8p_int[7][0], dac_i_8p_int[7][0]};
 
+    // =========================================================================
+    // ILA 调试 (ila_dac): 抓 8 通道 DAC 输出 8 样本 I/Q + 控制/复位信号
+    // =========================================================================
+    // probe0-15: 8 通道 x 8 样本 {I,Q} (probe(2p)=样本p 的 I, probe(2p+1)=Q)
+    //   通道顺序 {s02,s00,s12,s10,s22,s20,s32,s30} = 阵元 {1,0,3,2,5,4,7,6}
+    // probe16: 8 路 TREADY; probe17-19: RFDC DDS 状态; probe20: 控制/复位
+    // 注: 参考工程的 vio_dds_out/rst_bf_sync/st_rst_bf 在本实现分别对应
+    //     vio_dds0_en (VIO 基带使能) / rst_tx (64 拍定时复位) / rst_bf_filt
+    ila_dac ila_dac_inst (
+        .clk    (dac_coreclk),
+        .probe0 ({s02_axis_0_tdata[16*1-1:16*0],  s00_axis_0_tdata[16*1-1:16*0],
+                  s12_axis_0_tdata[16*1-1:16*0],  s10_axis_0_tdata[16*1-1:16*0],
+                  s22_axis_0_tdata[16*1-1:16*0],  s20_axis_0_tdata[16*1-1:16*0],
+                  s32_axis_0_tdata[16*1-1:16*0],  s30_axis_0_tdata[16*1-1:16*0]}),
+        .probe1 ({s02_axis_0_tdata[16*3-1:16*2],  s00_axis_0_tdata[16*3-1:16*2],
+                  s12_axis_0_tdata[16*3-1:16*2],  s10_axis_0_tdata[16*3-1:16*2],
+                  s22_axis_0_tdata[16*3-1:16*2],  s20_axis_0_tdata[16*3-1:16*2],
+                  s32_axis_0_tdata[16*3-1:16*2],  s30_axis_0_tdata[16*3-1:16*2]}),
+        .probe2 ({s02_axis_0_tdata[16*5-1:16*4],  s00_axis_0_tdata[16*5-1:16*4],
+                  s12_axis_0_tdata[16*5-1:16*4],  s10_axis_0_tdata[16*5-1:16*4],
+                  s22_axis_0_tdata[16*5-1:16*4],  s20_axis_0_tdata[16*5-1:16*4],
+                  s32_axis_0_tdata[16*5-1:16*4],  s30_axis_0_tdata[16*5-1:16*4]}),
+        .probe3 ({s02_axis_0_tdata[16*7-1:16*6],  s00_axis_0_tdata[16*7-1:16*6],
+                  s12_axis_0_tdata[16*7-1:16*6],  s10_axis_0_tdata[16*7-1:16*6],
+                  s22_axis_0_tdata[16*7-1:16*6],  s20_axis_0_tdata[16*7-1:16*6],
+                  s32_axis_0_tdata[16*7-1:16*6],  s30_axis_0_tdata[16*7-1:16*6]}),
+        .probe4 ({s02_axis_0_tdata[16*9-1:16*8],  s00_axis_0_tdata[16*9-1:16*8],
+                  s12_axis_0_tdata[16*9-1:16*8],  s10_axis_0_tdata[16*9-1:16*8],
+                  s22_axis_0_tdata[16*9-1:16*8],  s20_axis_0_tdata[16*9-1:16*8],
+                  s32_axis_0_tdata[16*9-1:16*8],  s30_axis_0_tdata[16*9-1:16*8]}),
+        .probe5 ({s02_axis_0_tdata[16*11-1:16*10], s00_axis_0_tdata[16*11-1:16*10],
+                  s12_axis_0_tdata[16*11-1:16*10], s10_axis_0_tdata[16*11-1:16*10],
+                  s22_axis_0_tdata[16*11-1:16*10], s20_axis_0_tdata[16*11-1:16*10],
+                  s32_axis_0_tdata[16*11-1:16*10], s30_axis_0_tdata[16*11-1:16*10]}),
+        .probe6 ({s02_axis_0_tdata[16*13-1:16*12], s00_axis_0_tdata[16*13-1:16*12],
+                  s12_axis_0_tdata[16*13-1:16*12], s10_axis_0_tdata[16*13-1:16*12],
+                  s22_axis_0_tdata[16*13-1:16*12], s20_axis_0_tdata[16*13-1:16*12],
+                  s32_axis_0_tdata[16*13-1:16*12], s30_axis_0_tdata[16*13-1:16*12]}),
+        .probe7 ({s02_axis_0_tdata[16*15-1:16*14], s00_axis_0_tdata[16*15-1:16*14],
+                  s12_axis_0_tdata[16*15-1:16*14], s10_axis_0_tdata[16*15-1:16*14],
+                  s22_axis_0_tdata[16*15-1:16*14], s20_axis_0_tdata[16*15-1:16*14],
+                  s32_axis_0_tdata[16*15-1:16*14], s30_axis_0_tdata[16*15-1:16*14]}),
+        .probe8 ({s02_axis_0_tdata[16*2-1:16*1],   s00_axis_0_tdata[16*2-1:16*1],
+                  s12_axis_0_tdata[16*2-1:16*1],   s10_axis_0_tdata[16*2-1:16*1],
+                  s22_axis_0_tdata[16*2-1:16*1],   s20_axis_0_tdata[16*2-1:16*1],
+                  s32_axis_0_tdata[16*2-1:16*1],   s30_axis_0_tdata[16*2-1:16*1]}),
+        .probe9 ({s02_axis_0_tdata[16*4-1:16*3],   s00_axis_0_tdata[16*4-1:16*3],
+                  s12_axis_0_tdata[16*4-1:16*3],   s10_axis_0_tdata[16*4-1:16*3],
+                  s22_axis_0_tdata[16*4-1:16*3],   s20_axis_0_tdata[16*4-1:16*3],
+                  s32_axis_0_tdata[16*4-1:16*3],   s30_axis_0_tdata[16*4-1:16*3]}),
+        .probe10({s02_axis_0_tdata[16*6-1:16*5],   s00_axis_0_tdata[16*6-1:16*5],
+                  s12_axis_0_tdata[16*6-1:16*5],   s10_axis_0_tdata[16*6-1:16*5],
+                  s22_axis_0_tdata[16*6-1:16*5],   s20_axis_0_tdata[16*6-1:16*5],
+                  s32_axis_0_tdata[16*6-1:16*5],   s30_axis_0_tdata[16*6-1:16*5]}),
+        .probe11({s02_axis_0_tdata[16*8-1:16*7],   s00_axis_0_tdata[16*8-1:16*7],
+                  s12_axis_0_tdata[16*8-1:16*7],   s10_axis_0_tdata[16*8-1:16*7],
+                  s22_axis_0_tdata[16*8-1:16*7],   s20_axis_0_tdata[16*8-1:16*7],
+                  s32_axis_0_tdata[16*8-1:16*7],   s30_axis_0_tdata[16*8-1:16*7]}),
+        .probe12({s02_axis_0_tdata[16*10-1:16*9],  s00_axis_0_tdata[16*10-1:16*9],
+                  s12_axis_0_tdata[16*10-1:16*9],  s10_axis_0_tdata[16*10-1:16*9],
+                  s22_axis_0_tdata[16*10-1:16*9],  s20_axis_0_tdata[16*10-1:16*9],
+                  s32_axis_0_tdata[16*10-1:16*9],  s30_axis_0_tdata[16*10-1:16*9]}),
+        .probe13({s02_axis_0_tdata[16*12-1:16*11], s00_axis_0_tdata[16*12-1:16*11],
+                  s12_axis_0_tdata[16*12-1:16*11], s10_axis_0_tdata[16*12-1:16*11],
+                  s22_axis_0_tdata[16*12-1:16*11], s20_axis_0_tdata[16*12-1:16*11],
+                  s32_axis_0_tdata[16*12-1:16*11], s30_axis_0_tdata[16*12-1:16*11]}),
+        .probe14({s02_axis_0_tdata[16*14-1:16*13], s00_axis_0_tdata[16*14-1:16*13],
+                  s12_axis_0_tdata[16*14-1:16*13], s10_axis_0_tdata[16*14-1:16*13],
+                  s22_axis_0_tdata[16*14-1:16*13], s20_axis_0_tdata[16*14-1:16*13],
+                  s32_axis_0_tdata[16*14-1:16*13], s30_axis_0_tdata[16*14-1:16*13]}),
+        .probe15({s02_axis_0_tdata[16*16-1:16*15], s00_axis_0_tdata[16*16-1:16*15],
+                  s12_axis_0_tdata[16*16-1:16*15], s10_axis_0_tdata[16*16-1:16*15],
+                  s22_axis_0_tdata[16*16-1:16*15], s20_axis_0_tdata[16*16-1:16*15],
+                  s32_axis_0_tdata[16*16-1:16*15], s30_axis_0_tdata[16*16-1:16*15]}),
+        .probe16({s32_axis_0_tready, s30_axis_0_tready, s22_axis_0_tready,
+                  s20_axis_0_tready, s12_axis_0_tready, s10_axis_0_tready,
+                  s02_axis_0_tready, s00_axis_0_tready}),
+        .probe17({dac0_nco_0_nco_update_busy}),
+        .probe18({dac0_nco_0_converter0_nco_freq}),
+        .probe19({dac0_nco_0_nco_update_request}),
+        .probe20({user_sysref_dac, rst_bf, rst_bf_request, rst_tx, rst_bf_filt, vio_dds0_en})
+    );
+
 endmodule : da_data_gen
 
 `endif // DA_DATA_GEN_SV
