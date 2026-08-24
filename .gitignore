@@ -55,3 +55,6 @@ ip/*/*.xcix
 # 仿真调试产物
 dbg_*.txt
 .Xil/
+# 仿真调试产物
+dbg_*.txt
+.Xil/
