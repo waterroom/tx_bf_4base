@@ -41,7 +41,13 @@ puts "=== xvhdl IP 顶层 ==="
 foreach n {fir_300to600_87p5pass_hf.vhd fir_600to1200_87p5pass_hf.vhd fir_1200to2400_87p5pass_hf.vhd} {
     if {[catch {exec xvhdl [file join $proj_root "sim_src" $n]} res]} { puts "VHDL 失败:\n$res"; exit 1 }
 }
-if {[catch {exec xvhdl [file join $proj_root "vivado_sim" "vivado_sim.srcs" "sources_1" "ip" "dds_core_tx_bf_4base" "sim" "dds_core_tx_bf_4base.vhd"]} res]} { puts "dds_core_tx_bf_4base VHDL 失败:\n$res"; exit 1 }
+if {[catch {exec xvhdl [file join $proj_root "vivado_sim" "vivado_sim.gen" "sources_1" "ip" "dds_core_tx_bf_4base" "sim" "dds_core_tx_bf_4base.vhd"]} res]} { puts "dds_core_tx_bf_4base VHDL 失败:\n$res"; exit 1 }
+
+# ---------- 2.5. xvlog: IP sim stub (ila_dac + vio_dac, 空壳, 例化需要) ----------
+puts "=== xvlog IP stub ==="
+foreach n {ila_dac vio_dac} {
+    if {[catch {exec xvlog [file join $proj_root "vivado_sim" "vivado_sim.gen" "sources_1" "ip" $n "sim" "$n.v"]} res]} { puts "$n stub 失败:\n$res"; exit 1 }
+}
 
 # ---------- 3. xvlog: pkg + RTL + tb_da_data_gen + glbl ----------
 puts "=== xvlog SV ==="

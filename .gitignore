@@ -52,3 +52,6 @@ ip/*/*.xcix
 
 # Vivado 精化产物
 *.pb
+# 仿真调试产物
+dbg_*.txt
+.Xil/
