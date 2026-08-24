@@ -26,7 +26,7 @@ set bf_tb   "C:/workbuddy_chat/tx_bf_4base/tb"
 set bf_ip   "C:/workbuddy_chat/tx_bf_4base/vivado_sim/vivado_sim.srcs/sources_1/ip"
 set bf_rtl_pat {*tx_bf_pkg.sv *da_data_gen.sv *tx_top.sv *beam_duc.sv *tx_bf_core.sv *frac_delay_fir.sv *int_delay.sv *interp_hb_3stage.sv *cmult_3dsp.sv *cmult_8p.sv *sum_4to1.sv *add_tree_4.sv *reset_sync.sv *decode_cmd_tx_bf.sv *dds_multi_phase_wrap.sv *cfg_bus.sv *tx_top_apb.sv}
 set bf_tb_pat {*tb_da_data_gen.sv *tb_decode_cmd_tx_bf.sv *tb_tx_top.sv}
-set bf_ip_names {fir_300to600_87p5pass_hf fir_600to1200_87p5pass_hf fir_1200to2400_87p5pass_hf dds_core_tx_bf_4base vio_dac}
+set bf_ip_names {fir_300to600_87p5pass_hf fir_600to1200_87p5pass_hf fir_1200to2400_87p5pass_hf dds_core_tx_bf_4base vio_dac ila_dac}
 
 set proj_dir   [get_property DIRECTORY [current_project]]
 set proj_name  [get_property NAME [current_project]]
