@@ -117,6 +117,11 @@ module da_data_gen #(
     
 (* max_fanout=800 *) logic [$clog2(RST_BF_WIDTH)-1:0] rst_bf_cnt = '0;
 (* max_fanout=800 *) logic rst_tx = 1'b1;   // 上电即复位态
+    // rst_tx 高扇出 (~8 万 FF): BUFG 全局网络分发。max_fanout 属性对复位
+    // 引脚无效 (Vivado 只对组合逻辑复制), BUFG 走全局时钟网络, 到达全片
+    // FF 时序均衡, 扇出不再是布线问题 (同步复位 64 拍, 裕量大)。
+    logic rst_tx_g;
+    BUFG u_rst_tx_bufg (.I(rst_tx), .O(rst_tx_g));
     always_ff @(posedge dac_coreclk) begin
         if (rst_bf_pulse) begin
             rst_bf_cnt <= RST_BF_WIDTH - 1;   // 触发: 复位 RST_BF_WIDTH 拍
@@ -219,7 +224,7 @@ end
     dds_core_tx_bf_4base u_dds_base (
         .aclk               (dac_coreclk),
         .aclken             (1'b1),
-        .aresetn            (~rst_tx),
+        .aresetn            (~rst_tx_g),
         .s_axis_phase_tvalid(1'b1),
         .s_axis_phase_tdata ({32'd0, up_dds0_incr}),
         .m_axis_data_tvalid (),
@@ -228,8 +233,8 @@ end
     logic signed [15:0] base_i ;  // cos (14bit<<2)
     logic signed [15:0] base_q ;  // sin (14bit<<2)
          always_ff @(posedge dac_coreclk) begin
-            base_i <= (rst_bf_request||rst_tx)?16'd0:{base_tdata[13:0], 2'b00};   // cos (14bit<<2)          
-            base_q <= (rst_bf_request||rst_tx)?16'd0:{base_tdata[29:16], 2'b00};  // sin (14bit<<2)          
+            base_i <= (rst_bf_request||rst_tx_g)?16'd0:{base_tdata[13:0], 2'b00};   // cos (14bit<<2)          
+            base_q <= (rst_bf_request||rst_tx_g)?16'd0:{base_tdata[29:16], 2'b00};  // sin (14bit<<2)          
          end
     // 基带 mux: VIO 使能 → 内部 DDS (4 波束同频), 否则外部 bb
     logic signed [N_BEAM*DATA_W-1:0] bb_i_eff, bb_q_eff;
@@ -259,7 +264,7 @@ end
     end
     tx_top u_tx (
         .clk_300m         (dac_coreclk),
-        .rst              (rst_tx),
+        .rst              (rst_tx_g),
         .bb_i             (bb_i_arr),
         .bb_q             (bb_q_arr),
         .bb_valid         (bb_valid_arr),
