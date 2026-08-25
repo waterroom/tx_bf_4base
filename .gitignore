@@ -58,3 +58,18 @@ dbg_*.txt
 # 仿真调试产物
 dbg_*.txt
 .Xil/
+
+# ---------- 补: Vivado 生成目录 (建仓遗漏) ----------
+*.cache/
+*.gen/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+sim_export/
+vivado_sim/vivado_sim.srcs/utils_1/
+.workbuddy/
+hs_err_pid*.dmp
+xsim.ini
+xvlog_chk*.txt
+sim_run_log.txt
