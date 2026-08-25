@@ -30,9 +30,16 @@ module dds_multi_phase_wrap #(
     // 注意: dds_core IP 内部自带相位累加器 (每拍 相位+=频率字),
     //       外部只需提供每个 DDS 的初始相位偏置 (相邻样本相位差 = phase_inc)
     logic [PHASE_W-1:0] phase_off_k [N_PAR-1:0];
-    always_comb begin
-        for (int p = 0; p < N_PAR; p++) begin
-            phase_off_k[p] = phase_offset + phase_inc * p;   // p 为循环常量, 常数乘
+    // 时序打拍: 组合 32bit 加法+常数乘 直进 DDS IP 输入层级太高
+    // (DDS IP 内部相位累加路径长), 寄存器隔离后每拍只 1 个加法器。
+    // phase_offset/phase_inc 是静态配置, 打拍延迟 1 拍无功能影响。
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int p = 0; p < N_PAR; p++)
+                phase_off_k[p] <= '0;
+        end else begin
+            for (int p = 0; p < N_PAR; p++)
+                phase_off_k[p] <= phase_offset + phase_inc * p;   // p 为循环常量, 常数乘
         end
     end
 
