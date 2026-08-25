@@ -36,8 +36,12 @@ set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*wim_reg*}]
 set_false_path -to [get_cells -hier -filter {NAME =~ *u_decode*fir_coef*}]
 
 # ---------- 5. 复位树扇出限制 ----------
-# 数据路径复位 rst_tx 高扇出到 DSP/FF RST 引脚, 限制扇出让综合器复制
+# 数据路径复位 rst_tx 高扇出 (~8 万 FF): MAX_FANOUT 对复位引脚无效
+# (Vivado 只对组合逻辑复制, 复位默认不复制) — 改用 BUFG 全局网络分发:
+# 复位信号走全局时钟网络, 到达全片 FF 时序均衡, 扇出不再是布线问题
+# (UG949 高扇出复位推荐做法; 同步复位 64 拍脉冲, BUFG ~1-2ns 延迟裕量大)
 set_property MAX_FANOUT 512 [get_nets -hier -filter {NAME =~ *rst_tx*}]
+set_property CLOCK_BUFFER_TYPE BUFG [get_nets -hier -filter {NAME =~ *rst_tx*}]
 
 # ---------- 7. 输入输出延时 (按实际来源/去向约束) ----------
 # 基带输入: 外部提供 4 路基带 (300MHz), 按实际时序
