@@ -29,17 +29,26 @@ module dds_multi_phase_wrap #(
     // ---------- 每相位静态初始相位: phase_offset + k×phase_inc ----------
     // 注意: dds_core IP 内部自带相位累加器 (每拍 相位+=频率字),
     //       外部只需提供每个 DDS 的初始相位偏置 (相邻样本相位差 = phase_inc)
-    logic [PHASE_W-1:0] phase_off_k [N_PAR-1:0];
-    // 时序打拍: 组合 32bit 加法+常数乘 直进 DDS IP 输入层级太高
-    // (DDS IP 内部相位累加路径长), 寄存器隔离后每拍只 1 个加法器。
-    // phase_offset/phase_inc 是静态配置, 打拍延迟 1 拍无功能影响。
+    logic [PHASE_W-1:0] phase_mul_k [N_PAR-1:0];   // 拍1: 常数乘 phase_inc×p
+    logic [PHASE_W-1:0] phase_off_k [N_PAR-1:0];   // 拍2: +phase_offset
+    // 两级流水 (每拍 1 个算子): 32bit 加法 + 常数乘 单拍串行层级仍高
+    // (常数乘最坏 2 级加 + 32bit 进位链 ~10+ levels), 拆成:
+    //   拍1: phase_mul_k[p] <= phase_inc * p        (常数乘, ~4 levels)
+    //   拍2: phase_off_k[p] <= phase_offset + phase_mul_k[p]  (1 级 32bit 加, ~8 levels)
+    // phase_off 用的 mul 是上一拍值 → 总延迟 2 拍; phase_inc/offset 是
+    // 静态配置 (apply 才更新), 滞后 2 拍无功能影响。N_PAR 个 DDS 各自
+    // phase_off_k 延迟一致, 相位相对关系不变。
     always_ff @(posedge clk) begin
         if (rst) begin
-            for (int p = 0; p < N_PAR; p++)
+            for (int p = 0; p < N_PAR; p++) begin
+                phase_mul_k[p] <= '0;
                 phase_off_k[p] <= '0;
+            end
         end else begin
-            for (int p = 0; p < N_PAR; p++)
-                phase_off_k[p] <= phase_offset + phase_inc * p;   // p 为循环常量, 常数乘
+            for (int p = 0; p < N_PAR; p++) begin
+                phase_mul_k[p] <= phase_inc * p;                    // 常数乘
+                phase_off_k[p] <= phase_offset + phase_mul_k[p];    // 1 级加法 (mul 为上一拍值)
+            end
         end
     end
 
