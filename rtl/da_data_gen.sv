@@ -233,8 +233,10 @@ end
     logic signed [15:0] base_i ;  // cos (14bit<<2)
     logic signed [15:0] base_q ;  // sin (14bit<<2)
          always_ff @(posedge dac_coreclk) begin
-            base_i <= (rst_bf_request||rst_tx_g)?16'd0:{base_tdata[13:0], 2'b00};   // cos (14bit<<2)          
-            base_q <= (rst_bf_request||rst_tx_g)?16'd0:{base_tdata[29:16], 2'b00};  // sin (14bit<<2)          
+            // 清零条件 (用户定义): 配置/复位期间 + VIO 关闭 + VIO 使能切换瞬间
+            // (~vio_dds0_en: 非使能输出 0; 上升沿组合+展宽: 切换瞬间清零防毛刺)
+            base_i <= (rst_bf_request||rst_tx_g||(~vio_dds0_en)||(~vio_dds0_en_reg & vio_dds0_en)||vio_dds0_en_rise)?16'd0:{base_tdata[13:0], 2'b00};   // cos (14bit<<2)          
+            base_q <= (rst_bf_request||rst_tx_g||(~vio_dds0_en)||(~vio_dds0_en_reg & vio_dds0_en)||vio_dds0_en_rise)?16'd0:{base_tdata[29:16], 2'b00};  // sin (14bit<<2)          
          end
     // 基带 mux: VIO 使能 → 内部 DDS (4 波束同频), 否则外部 bb
     logic signed [N_BEAM*DATA_W-1:0] bb_i_eff, bb_q_eff;
