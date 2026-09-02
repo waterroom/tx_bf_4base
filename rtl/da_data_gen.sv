@@ -243,12 +243,12 @@ end
     always_comb begin
         bb_i_eff = bb_i;
         bb_q_eff = bb_q;
-        if (vio_dds0_en) begin
-            for (int b = 0; b < N_BEAM; b++) begin
-                bb_i_eff[b*DATA_W +: DATA_W] = base_i;
-                bb_q_eff[b*DATA_W +: DATA_W] = base_q;
-            end
-        end
+        // if (vio_dds0_en) begin
+        //     for (int b = 0; b < N_BEAM; b++) begin
+        //         bb_i_eff[b*DATA_W +: DATA_W] = base_i;
+        //         bb_q_eff[b*DATA_W +: DATA_W] = base_q;
+        //     end
+        // end
     end
 
     // ---------- tx_top (cfg_* 端口版, 同步高有效复位) ----------
@@ -261,7 +261,7 @@ end
             bb_i_arr[b]    = bb_i_eff[b*DATA_W +: DATA_W];
             bb_q_arr[b]    = bb_q_eff[b*DATA_W +: DATA_W];
             // VIO 使能时强制 valid: 无外部基带 (bb_valid=0) 也能输出模拟基带
-            bb_valid_arr[b] = bb_valid[b] | vio_dds0_en;
+            bb_valid_arr[b] = bb_valid[b];// | vio_dds0_en;
         end
     end
     tx_top u_tx (
