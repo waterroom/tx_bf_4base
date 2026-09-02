@@ -293,42 +293,42 @@ end
     // 路映射: s00=阵元0, s02=阵元1, s10=阵元2, s12=阵元3,
     //         s20=阵元4, s22=阵元5, s30=阵元6, s32=阵元7
     // (SV 允许读 output 端口, 直接打包 dac_i_8p/dac_q_8p)
-    assign s00_axis_0_tdata = vio_dds0_en?{8{base_q,base_i}}:
+    assign s00_axis_0_tdata = vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[0][7], dac_i_8p_int[0][7], dac_q_8p_int[0][6], dac_i_8p_int[0][6],
                                dac_q_8p_int[0][5], dac_i_8p_int[0][5], dac_q_8p_int[0][4], dac_i_8p_int[0][4],
                                dac_q_8p_int[0][3], dac_i_8p_int[0][3], dac_q_8p_int[0][2], dac_i_8p_int[0][2],
                                dac_q_8p_int[0][1], dac_i_8p_int[0][1], dac_q_8p_int[0][0], dac_i_8p_int[0][0]};
-    assign s02_axis_0_tdata = vio_dds0_en?{8{base_q,base_i}}:
+    assign s02_axis_0_tdata = vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[1][7], dac_i_8p_int[1][7], dac_q_8p_int[1][6], dac_i_8p_int[1][6],
                                dac_q_8p_int[1][5], dac_i_8p_int[1][5], dac_q_8p_int[1][4], dac_i_8p_int[1][4],
                                dac_q_8p_int[1][3], dac_i_8p_int[1][3], dac_q_8p_int[1][2], dac_i_8p_int[1][2],
                                dac_q_8p_int[1][1], dac_i_8p_int[1][1], dac_q_8p_int[1][0], dac_i_8p_int[1][0]};
-    assign s10_axis_0_tdata =  vio_dds0_en?{8{base_q,base_i}}:
+    assign s10_axis_0_tdata =  vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[2][7], dac_i_8p_int[2][7], dac_q_8p_int[2][6], dac_i_8p_int[2][6],
                                dac_q_8p_int[2][5], dac_i_8p_int[2][5], dac_q_8p_int[2][4], dac_i_8p_int[2][4],
                                dac_q_8p_int[2][3], dac_i_8p_int[2][3], dac_q_8p_int[2][2], dac_i_8p_int[2][2],
                                dac_q_8p_int[2][1], dac_i_8p_int[2][1], dac_q_8p_int[2][0], dac_i_8p_int[2][0]};
-    assign s12_axis_0_tdata =   vio_dds0_en?{8{base_q,base_i}}:
+    assign s12_axis_0_tdata =   vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[3][7], dac_i_8p_int[3][7], dac_q_8p_int[3][6], dac_i_8p_int[3][6],
                                dac_q_8p_int[3][5], dac_i_8p_int[3][5], dac_q_8p_int[3][4], dac_i_8p_int[3][4],
                                dac_q_8p_int[3][3], dac_i_8p_int[3][3], dac_q_8p_int[3][2], dac_i_8p_int[3][2],
                                dac_q_8p_int[3][1], dac_i_8p_int[3][1], dac_q_8p_int[3][0], dac_i_8p_int[3][0]};
-    assign s20_axis_0_tdata = vio_dds0_en?{8{base_q,base_i}}:
+    assign s20_axis_0_tdata = vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[4][7], dac_i_8p_int[4][7], dac_q_8p_int[4][6], dac_i_8p_int[4][6],
                                dac_q_8p_int[4][5], dac_i_8p_int[4][5], dac_q_8p_int[4][4], dac_i_8p_int[4][4],
                                dac_q_8p_int[4][3], dac_i_8p_int[4][3], dac_q_8p_int[4][2], dac_i_8p_int[4][2],
                                dac_q_8p_int[4][1], dac_i_8p_int[4][1], dac_q_8p_int[4][0], dac_i_8p_int[4][0]};
-    assign s22_axis_0_tdata = vio_dds0_en?{8{base_q,base_i}}:
+    assign s22_axis_0_tdata = vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[5][7], dac_i_8p_int[5][7], dac_q_8p_int[5][6], dac_i_8p_int[5][6],
                                dac_q_8p_int[5][5], dac_i_8p_int[5][5], dac_q_8p_int[5][4], dac_i_8p_int[5][4],
                                dac_q_8p_int[5][3], dac_i_8p_int[5][3], dac_q_8p_int[5][2], dac_i_8p_int[5][2],
                                dac_q_8p_int[5][1], dac_i_8p_int[5][1], dac_q_8p_int[5][0], dac_i_8p_int[5][0]};
-    assign s30_axis_0_tdata = vio_dds0_en?{8{base_q,base_i}}:
+    assign s30_axis_0_tdata = vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[6][7], dac_i_8p_int[6][7], dac_q_8p_int[6][6], dac_i_8p_int[6][6],
                                dac_q_8p_int[6][5], dac_i_8p_int[6][5], dac_q_8p_int[6][4], dac_i_8p_int[6][4],
                                dac_q_8p_int[6][3], dac_i_8p_int[6][3], dac_q_8p_int[6][2], dac_i_8p_int[6][2],
                                dac_q_8p_int[6][1], dac_i_8p_int[6][1], dac_q_8p_int[6][0], dac_i_8p_int[6][0]};
-    assign s32_axis_0_tdata = vio_dds0_en?{8{base_q,base_i}}:
+    assign s32_axis_0_tdata = vio_dds0_en_reg?{8{base_q,base_i}}:
                                {dac_q_8p_int[7][7], dac_i_8p_int[7][7], dac_q_8p_int[7][6], dac_i_8p_int[7][6],
                                dac_q_8p_int[7][5], dac_i_8p_int[7][5], dac_q_8p_int[7][4], dac_i_8p_int[7][4],
                                dac_q_8p_int[7][3], dac_i_8p_int[7][3], dac_q_8p_int[7][2], dac_i_8p_int[7][2],
