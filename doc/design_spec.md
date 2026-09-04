@@ -57,7 +57,7 @@
 ## 4. 配置协议（64bit 并行报文，CDC FIFO 跨时钟域）
 
 - 帧头 `0x7E8118E7` / 帧尾 `0x8F9009F8`（`da_data_reg[2]` 组合比较，与 valid 同拍）
-- **Function_id 门控（关键）**：只有 `Function_id==0x0A0C_000B`（apply）的内容字被解析；其他 Function_id 内容全部忽略（防误改）
+- **Function_id 门控（关键）**：只有 `Function_id==0xDABF_000B`（apply）的内容字被解析；其他 Function_id 内容全部忽略（防误改）
 - 提交：delay/phase 由 apply（Function_id 门控）提交，**不判帧尾状态**；FIR/weight 立即加载
 - `rst_bf`：可选数据路径同步复位（8 拍滤波 → 上升沿触发 64 拍定时复位，覆盖 FIR/DDS 流水 latency；配置寄存器不复位）
 

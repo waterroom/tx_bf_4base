@@ -105,9 +105,9 @@ da_data_gen #(
 
 ```systemverilog
 // 帧头: {32'h7E8118E7, 32'h0000_0040}
-// Function_id: {16'h0001, 16'h0001, 32'h0A0C_000B}
+// Function_id: {16'h0001, 16'h0001, 32'hDABF_000B}
 // 帧尾: {32'h0000_0000, 32'h8F9009F8}
-// 内容字: {32'h670X_XXXX, data}  仅 apply (0x0A0C_000B) 的内容字被解析
+// 内容字: {32'h670X_XXXX, data}  仅 apply (0xDABF_000B) 的内容字被解析
 ```
 
 寄存器见 `doc/da_data_gen_interface.md`（delay/phase 由 apply 提交，FIR/weight 立即加载，0x6704 DBF 截位）。**建议配置顺序**：FIR 系数 → 权重 → phase → delay → apply。

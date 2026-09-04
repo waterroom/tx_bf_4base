@@ -8,7 +8,7 @@
 //   - 2D 寄存器: delay/weight/FIR 按 beam×ch 索引 (idx=beam*16+ch, 0..63)
 //   - FIR 系数: 数据内嵌 tap_addr (data[19:16]), 立即加载 (不经 apply)
 //   - 权重: 立即加载 (不经 apply)
-//   - delay/phase_inc/phase_offset: apply 提交 (Function_id=0x0A0C_000B)
+//   - delay/phase_inc/phase_offset: apply 提交 (Function_id=0xDABF_000B)
 //   - 新增 phase_offset (0x6706), tx_bf_trunc (0x6704, DAC 截位右移量)
 //   - phase_inc/offset 每波束独立 (0x6705/06 + beam)
 //
@@ -54,7 +54,7 @@ module decode_cmd_tx_bf #(
     output logic [$clog2(N_CH_P)-1:0]                         weight_sel_ch,
     output logic signed [COEF_W_P-1:0]                        weight_re,
     output logic signed [COEF_W_P-1:0]                        weight_im,
-    // apply 脉冲 (报文 Function_id=0x0A0C_000B 命中时 1 拍)
+    // apply 脉冲 (报文 Function_id=0xDABF_000B 命中时 1 拍)
     output logic                                              cfg_apply_pulse,
     // DAC 截位右移量 (0x6704, 默认 4 = SUM_OUT_W-DAC_W, 立即生效)
     output logic [3:0]                                        tx_bf_trunc
@@ -167,6 +167,7 @@ module decode_cmd_tx_bf #(
             main_st <= IDLE;
             main_st_is_MESSAGE_CONTENT <= 0;
             main_st_is_PACKET_CHEKSUM  <= 0;
+            Function_id <= '0;   // 修复: 复位初始化, 否则 (X==0xDABF000B)=X, apply 门 X
         end else begin
             case (main_st)
                 IDLE: begin
@@ -223,14 +224,14 @@ module decode_cmd_tx_bf #(
     end
 
     // ========================================================================
-    // 5. Function_id == 0x0A0C_000B (apply 门)
+    // 5. Function_id == 0xDABF_000B (apply 门)
     // ========================================================================
-    reg Function_id_is_0A0C_000B;
+    reg Function_id_is_DABF_000B;
     always_ff @(posedge da_clk) begin
         if (rst_da_clk)
-            Function_id_is_0A0C_000B <= 0;
+            Function_id_is_DABF_000B <= 0;
         else
-            Function_id_is_0A0C_000B <= (Function_id == 32'h0A0C_000B) ? 1 : 0;
+            Function_id_is_DABF_000B <= (Function_id == 32'hDABF_000B) ? 1 : 0;
     end
 
     // ========================================================================
@@ -264,19 +265,19 @@ module decode_cmd_tx_bf #(
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val_temp[b][c] <= '0;
-        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6701 && match_chip) begin
+        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_DABF_000B && is_0x6701 && match_chip) begin
             for (int b = 0; b < N_BEAM_P; b++)
                 if (beam_sel == b)
                     delay_val_temp[b][ch_sel] <= da_data_reg[2][$clog2(MAX_DELAY_P+1)-1:0];
         end
     end
-    // apply 提交 (Function_id==0x0A0C_000B 门控即提交, 不判帧尾状态)
+    // apply 提交 (Function_id==0xDABF_000B 门控即提交, 不判帧尾状态)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= '0;
-        end else if (Function_id_is_0A0C_000B) begin   // Function_id 门控即提交, 不判帧尾
+        end else if (Function_id_is_DABF_000B) begin   // Function_id 门控即提交, 不判帧尾
             for (int b = 0; b < N_BEAM_P; b++)
                 for (int c = 0; c < N_CH_P; c++)
                     delay_val[b][c] <= delay_val_temp[b][c];
@@ -295,7 +296,7 @@ module decode_cmd_tx_bf #(
             // 默认清零
             for (int b = 0; b < N_BEAM_P; b++) fir_coef_load[b] <= 0;
             // 命中 0x6702 时立即加载
-            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6702 && match_chip) begin
+            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_DABF_000B && is_0x6702 && match_chip) begin
                 for (int b = 0; b < N_BEAM_P; b++) begin
                     if (beam_sel == b) begin
                         fir_coef_load[b] <= 1;
@@ -318,7 +319,7 @@ module decode_cmd_tx_bf #(
             weight_im     <= 0;
         end else begin
             for (int b = 0; b < N_BEAM_P; b++) weight_load[b] <= 0;
-            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6703 && match_chip) begin
+            if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_DABF_000B && is_0x6703 && match_chip) begin
                 for (int b = 0; b < N_BEAM_P; b++) begin
                     if (beam_sel == b) begin
                         weight_load[b]  <= 1;
@@ -341,7 +342,7 @@ module decode_cmd_tx_bf #(
                 phase_inc_temp[b]    <= '0;
                 phase_offset_temp[b] <= '0;
             end
-        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B) begin
+        end else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_DABF_000B) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
                 if (is_0x6705 && msg_idx == b)
                     phase_inc_temp[b] <= da_data_reg[2][31:0];
@@ -351,14 +352,14 @@ module decode_cmd_tx_bf #(
         end
     end
     // apply 提交
-    // apply 提交 (Function_id==0x0A0C_000B 门控即提交, 不判帧尾状态)
+    // apply 提交 (Function_id==0xDABF_000B 门控即提交, 不判帧尾状态)
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
             for (int b = 0; b < N_BEAM_P; b++) begin
                 phase_inc[b]    <= '0;
                 phase_offset[b] <= '0;
             end
-        end else if (Function_id_is_0A0C_000B) begin   // Function_id 门控即提交, 不判帧尾
+        end else if (Function_id_is_DABF_000B) begin   // Function_id 门控即提交, 不判帧尾
             for (int b = 0; b < N_BEAM_P; b++) begin
                 phase_inc[b]    <= phase_inc_temp[b];
                 phase_offset[b] <= phase_offset_temp[b];
@@ -370,19 +371,19 @@ module decode_cmd_tx_bf #(
     always_ff @(posedge da_clk) begin
         if (rst_da_clk)
             tx_bf_trunc <= 4'd0;   // 默认无右移 (DBF 输出直通)
-        else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_0A0C_000B && is_0x6704)
+        else if (da_data_valid_reg[2] && main_st_is_MESSAGE_CONTENT && Function_id_is_DABF_000B && is_0x6704)
             tx_bf_trunc <= da_data_reg[2][3:0];
     end
 
     // ---- 6f. apply 脉冲 (Function_id 匹配上升沿 1 拍, 不判帧尾) ----
-    reg Function_id_is_0A0C_000B_r;
+    reg Function_id_is_DABF_000B_r;
     always_ff @(posedge da_clk) begin
         if (rst_da_clk) begin
-            Function_id_is_0A0C_000B_r <= 0;
+            Function_id_is_DABF_000B_r <= 0;
             cfg_apply_pulse <= 0;
         end else begin
-            Function_id_is_0A0C_000B_r <= Function_id_is_0A0C_000B;
-            cfg_apply_pulse <= Function_id_is_0A0C_000B & ~Function_id_is_0A0C_000B_r;
+            Function_id_is_DABF_000B_r <= Function_id_is_DABF_000B;
+            cfg_apply_pulse <= Function_id_is_DABF_000B & ~Function_id_is_DABF_000B_r;
         end
     end
 

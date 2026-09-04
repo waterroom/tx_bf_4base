@@ -32,7 +32,7 @@
 | 序号   | 状态            | [63:32]                      | [31:0]        | 说明                      |
 | ------ | ------          | ---------                    | --------      | ------                    |
 | 1      | PACKET_HEAD     | `0x7E8118E7`                 | Packet_Len    | 帧头                      |
-| 2      | PACKET_FUNCTION | {Dest_id[16], Device_id[16]} | Function_id   | apply 门: `0x0A0C_000B`   |
+| 2      | PACKET_FUNCTION | {Dest_id[16], Device_id[16]} | Function_id   | apply 门: `0xDABF_000B`   |
 | 3      | PACKET_TIME     | Message_Time[63:32]          | [31:0]        | 时间戳（忽略）            |
 | 4      | PACKET_Amount   | Serial_Num                   | Packet_Amount | 序列号（忽略）            |
 | 5      | PACKET_DATA_LEN | Packet_Num                   | Data_Len      | 包号（忽略）              |
@@ -42,7 +42,7 @@
 
 **帧头**：`0x7E8118E7`（32bit，在 [63:32]）
 **帧尾**：`0x8F9009F8`（32bit，在 [31:0]）
-**Function_id 门控（关键）**：只有 `Function_id == 0x0A0C_000B`（apply 报文）的**内容字才会被解析**（delay/FIR/weight/phase 全部在 MESSAGE_CONTENT 状态用 `Function_id_is_0A0C_000B` 门控）——其他 Function_id 报文的内容字**全部忽略**，不会写暂存、不会触发 FIR/weight 立即加载，防止其他功能报文误改 DBF 参数。
+**Function_id 门控（关键）**：只有 `Function_id == 0xDABF_000B`（apply 报文）的**内容字才会被解析**（delay/FIR/weight/phase 全部在 MESSAGE_CONTENT 状态用 `Function_id_is_DABF_000B` 门控）——其他 Function_id 报文的内容字**全部忽略**，不会写暂存、不会触发 FIR/weight 立即加载，防止其他功能报文误改 DBF 参数。
 - **delay / phase_inc / phase_offset 由 apply（Function_id 门控）提交**——不判帧尾状态（PACKET_CHEKSUM），Function_id 匹配即持续提交暂存值；两片同步由主控协调
 
 ## 4. 寄存器映射
@@ -78,7 +78,7 @@
 ### 动作说明
 
 - **立即加载**：FIR 系数和复数权重在报文命中地址码的当拍立即输出 load 脉冲，直接写入 tx_bf_core
-- **apply 提交（delay/phase）**：Function_id=0x0A0C_000B 门控即提交暂存值（不判帧尾状态）
+- **apply 提交（delay/phase）**：Function_id=0xDABF_000B 门控即提交暂存值（不判帧尾状态）
 - **立即生效（trunc）**：tx_bf_core 输出截位右移量 0x6704 命中即生效（0-15，默认 0，控制 DBF 每通道输出右移位数/增益，与 DAC 截位无关）
 
 ### 参数计算
@@ -114,14 +114,14 @@
    报文: addr = 0x6706_0000 + 0, data = phase_offset[31:0]
 
 5) 以上全部放在一个报文的 MESSAGE_CONTENT 段,
-   报文头 Function_id = 0x0A0C_000B → 帧尾时统一提交 delay/phase
+   报文头 Function_id = 0xDABF_000B → 帧尾时统一提交 delay/phase
 ```
 
 ### 报文结构示例（配置 beam0 的 delay[0]=10）
 
 ```
 拍1: 0x7E8118E7_00000040    (帧头 + Packet_Len)
-拍2: 0x00010001_0A0C000B    (Dest/Device + Function_id=apply)
+拍2: 0x00010001_DABF000B    (Dest/Device + Function_id=apply)
 拍3: 0x00000000_00000000    (Time)
 拍4: 0x00000001_00000001    (Serial/Amount)
 拍5: 0x00000001_00000040    (PktNum/DataLen)
@@ -147,6 +147,6 @@
 - 每片 ZU48DR 独立运行一个 `da_data_gen` 实例
 - 每片处理 8 阵元 × 4 波束，输出 8 路 DAC；两片合计 16 阵元 × 4 波束
 - 配置报文：主控对两片**广播同一份 16 元配置**（或各自发送），每片按 `CHIP_ID` 自动抽取自己的 8 元
-- **配置提交**：delay / phase_inc / phase_offset 均在 apply 报文（Function_id=0x0A0C_000B）帧尾统一提交——两片各自收到报文即生效。两片同步由主控协调（同时发报或按 `rst_bf_request` 反馈后统一操作）
+- **配置提交**：delay / phase_inc / phase_offset 均在 apply 报文（Function_id=0xDABF_000B）帧尾统一提交——两片各自收到报文即生效。两片同步由主控协调（同时发报或按 `rst_bf_request` 反馈后统一操作）
 - **`rst_bf` 同步定时复位（可选）**：主控可同时拉高两片 `rst_bf`（**捕获每一个脉冲，含短毛刺**——8 拍移位按位或展宽，不漏任何复位请求）→ 每片捕获输出上升沿触发 **64 拍（RST_BF_WIDTH）定时复位**（rst_tx）——复位宽度必须 ≥ 数据路径流水总 latency（DDS ~8 + 混频 2 + 3 级半带 FIR ~30-45 + 求和 2 ≈ 50-60 拍），否则复位释放后 latency 拍内输出仍是旧配置的过渡态。主控只需触发一次，宽度硬件保证，两片各复位 64 拍后同步恢复
 - **`rst_bf_request`**：本片 apply 配置提交后的脉冲，供主控感知两片完成状态

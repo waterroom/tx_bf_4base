@@ -145,7 +145,7 @@ module tb_da_data_gen;
             for (int c = 0; c < N_ELEM; c++)
                 content_q.push_back({32'h6701_0000 + b*16 + c, 32'h0000_0000});
 
-        send_packet(32'h0A0C_000B, content_q);  // apply (delay/phase 帧尾即提交 + rst_bf_request)
+        send_packet(32'hDABF_000B, content_q);  // apply (delay/phase 帧尾即提交 + rst_bf_request)
 
         // 模拟主控: 拉高 rst_bf (≥8 拍滤波) → 数据路径同步复位 (流水清零)
         // 注: 配置提交不再依赖 rst_bf (apply 帧尾即提交), rst_bf 仅复位数据路径

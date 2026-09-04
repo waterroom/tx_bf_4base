@@ -129,7 +129,7 @@ module tb_decode_cmd_tx_bf;
         content_q = {};
         // data[19:16]=tap=7, data[15:0]=coef=0x7FFF → data = 0x0007_7FFF
         content_q.push_back({32'h6702_0000, 32'h0007_7FFF}); // addr=0x6702+0, tap=7
-        send_packet(32'h0A0C_000B, content_q);
+        send_packet(32'hDABF_000B, content_q);
         // 等待 CDC + 流水 + 脉冲采样
         repeat(30) @(posedge da_clk);
         if (!fir_load_seen[0] || fir_sel_ch_cap !== 0 || fir_addr_cap !== 7 || fir_data_cap !== 16'h7FFF) begin
@@ -142,7 +142,7 @@ module tb_decode_cmd_tx_bf;
         $display("=== 用例 2: 权重加载 ===");
         content_q = {};
         content_q.push_back({32'h6703_0025, 32'h8000_4000}); // idx=2*16+5=37=0x25, data={im=0x8000, re=0x4000}
-        send_packet(32'h0A0C_000B, content_q);
+        send_packet(32'hDABF_000B, content_q);
         repeat(30) @(posedge da_clk);
         if (!weight_load_seen[2] || weight_sel_ch_cap !== 5 || weight_re_cap !== 16'h4000 || weight_im_cap !== 16'h8000) begin
             $display("  FAIL: load_seen[2]=%b sel_ch=%0d re=%h im=%h", weight_load_seen[2], weight_sel_ch_cap, weight_re_cap, weight_im_cap);
@@ -157,7 +157,7 @@ module tb_decode_cmd_tx_bf;
         content_q.push_back({32'h6701_0037, 32'h0000_0014}); // delay[3][7]=20 (idx=3*16+7=55=0x37)
         content_q.push_back({32'h6705_0000, 32'h1234_5678}); // phase_inc[0]
         content_q.push_back({32'h6706_0001, 32'hABCD_EF01}); // phase_offset[1]
-        send_packet(32'h0A0C_000B, content_q);  // apply 报文 (delay/phase 帧尾即提交)
+        send_packet(32'hDABF_000B, content_q);  // apply 报文 (delay/phase 帧尾即提交)
         repeat(40) @(posedge da_clk);
         if (delay_val[0][0] !== 10 || phase_inc[0] !== 32'h12345678 || phase_offset[1] !== 32'hABCDEF01) begin
             $display("  FAIL: delay[0][0]=%0d phase_inc[0]=%h phase_offset[1]=%h", delay_val[0][0], phase_inc[0], phase_offset[1]);
@@ -185,7 +185,7 @@ module tb_decode_cmd_tx_bf;
         // phase/delay 暂存不应被污染: 发"空 apply"提交当前 temp,
         // 若非 apply 曾污染 temp, 提交后 delay/phase 会变成污染值
         content_q = {};
-        send_packet(32'h0A0C_000B, content_q);  // 空 apply: 只触发提交, 无新数据
+        send_packet(32'hDABF_000B, content_q);  // 空 apply: 只触发提交, 无新数据
         repeat(40) @(posedge da_clk);
         if (phase_inc[0] !== 32'h12345678) begin  // 应仍为用例 3 的值
             $display("  FAIL: phase_inc[0]=%h (非 apply 污染了暂存)", phase_inc[0]);
@@ -204,7 +204,7 @@ module tb_decode_cmd_tx_bf;
         content_q.push_back({32'h6702_000F, 32'h0007_7FFF}); // idx=15: beam0/ch15(片1) → 忽略
         content_q.push_back({32'h6703_000F, 32'h8000_4000}); // idx=15: 片1 → 忽略
         content_q.push_back({32'h6701_000F, 32'h0000_0063}); // delay beam0/ch15(片1) → 忽略
-        send_packet(32'h0A0C_000B, content_q);  // apply
+        send_packet(32'hDABF_000B, content_q);  // apply
         repeat(30) @(posedge da_clk);
         // 不应产生新 load (sel_ch 应保持前值: fir=0, weight=5); delay[0][7] 应保持 0
         if (fir_sel_ch_cap !== 0 || weight_sel_ch_cap !== 5 || delay_val[0][7] !== 0) begin
@@ -217,7 +217,7 @@ module tb_decode_cmd_tx_bf;
         $display("=== 用例 6: 截位寄存器 0x6704 ===");
         content_q = {};
         content_q.push_back({32'h6704_0000, 32'h0000_0006}); // tx_bf_trunc = 6 (右移 6)
-        send_packet(32'h0A0C_000B, content_q);  // apply (trunc 立即生效, 不判帧尾)
+        send_packet(32'hDABF_000B, content_q);  // apply (trunc 立即生效, 不判帧尾)
         repeat(30) @(posedge da_clk);
         if (tx_bf_trunc !== 4'd6) begin
             $display("  FAIL: tx_bf_trunc=%0d (应 6)", tx_bf_trunc);
